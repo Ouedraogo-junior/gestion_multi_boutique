@@ -23,7 +23,7 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
       id="recu-print"
       style={{
         width: '148mm',
-        minHeight: '210mm',        // hauteur A5
+        minHeight: '210mm',
         fontFamily: 'Arial, sans-serif',
         fontSize: '10px',
         color: '#000',
@@ -59,9 +59,18 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
           <div style={{ fontSize: '15px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
             {boutique.nom.toUpperCase()}
           </div>
-          {boutique.adresse && <div style={{ fontSize: '9px', marginTop: '1mm' }}>{boutique.adresse}</div>}
-          {boutique.telephone && <div style={{ fontSize: '9px' }}>Tél : {boutique.telephone}</div>}
-          {boutique.slogan && <div style={{ fontSize: '9px', fontStyle: 'italic', marginTop: '1mm' }}>{boutique.slogan}</div>}
+          {boutique.adresse && (
+            <div style={{ fontSize: '9px', marginTop: '1mm' }}>{boutique.adresse}</div>
+          )}
+          {boutique.telephone && (
+            <div style={{ fontSize: '9px' }}>Tél : {boutique.telephone}</div>
+          )}
+          {boutique.ncc && (
+            <div style={{ fontSize: '9px' }}>NCC : {boutique.ncc}</div>
+          )}
+          {boutique.slogan && (
+            <div style={{ fontSize: '9px', fontStyle: 'italic', marginTop: '1mm' }}>{boutique.slogan}</div>
+          )}
         </div>
       </div>
 
@@ -81,57 +90,56 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
 
       {/* Tableau articles */}
       <div style={{ flex: 1 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#e8f0fe' }}>
-            <th style={thStyle({ width: '5mm' })}>N°</th>
-            <th style={thStyle({})}>Article</th>
-            <th style={thStyle({ width: '10mm' })}>Qté</th>
-            <th style={thStyle({ width: '20mm' })}>P.Unit</th>
-            <th style={thStyle({ width: '22mm' })}>Total TTC</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lignes.map((d, i) => {
-            const designation = d.variante?.produit?.designation ?? ''
-            const attributs   = d.variante?.attributs && Object.keys(d.variante.attributs).length > 0
-              ? Object.values(d.variante.attributs).join(' / ') : ''
-            const label = attributs ? `${designation} (${attributs})` : designation
-            const total = d.prix_applique * d.quantite - d.remise_montant
-            return (
-              <tr key={i}>
-                <td style={tdStyle({ textAlign: 'center' })}>{i + 1}</td>
-                <td style={tdStyle({})}>{label}</td>
-                <td style={tdStyle({ textAlign: 'center' })}>{d.quantite}</td>
-                <td style={tdStyle({ textAlign: 'right' })}>{fmt(d.prix_applique)}</td>
-                <td style={tdStyle({ textAlign: 'right' })}>{fmt(total)}</td>
-              </tr>
-            )
-          })}
-          {/* Zone vide fixe */}
-          <tr>
-            <td colSpan={5} style={{
-              border: '1px solid #aaa',
-              height: '40mm',
-              verticalAlign: 'top',
-              padding: '2px',
-            }}>&nbsp;</td>
-          </tr>
-          {/* Total */}
-          <tr>
-            <td colSpan={4} style={{ ...tdStyle({}), textAlign: 'right', fontWeight: 'bold', borderTop: '2px solid #000' }}>
-              Total Facture
-            </td>
-            <td style={{ ...tdStyle({ textAlign: 'right' }), fontWeight: 'bold', borderTop: '2px solid #000' }}>
-              {fmt(vente.total_net)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3mm' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#e8f0fe' }}>
+              <th style={thStyle({ width: '5mm' })}>N°</th>
+              <th style={thStyle({})}>Article</th>
+              <th style={thStyle({ width: '10mm' })}>Qté</th>
+              <th style={thStyle({ width: '20mm' })}>P.Unit</th>
+              <th style={thStyle({ width: '22mm' })}>Total TTC</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lignes.map((d, i) => {
+              const designation = d.variante?.produit?.designation ?? ''
+              const attributs   = d.variante?.attributs && Object.keys(d.variante.attributs).length > 0
+                ? Object.values(d.variante.attributs).join(' / ') : ''
+              const label = attributs ? `${designation} (${attributs})` : designation
+              const total = d.prix_applique * d.quantite - d.remise_montant
+              return (
+                <tr key={i}>
+                  <td style={tdStyle({ textAlign: 'center' })}>{i + 1}</td>
+                  <td style={tdStyle({})}>{label}</td>
+                  <td style={tdStyle({ textAlign: 'center' })}>{d.quantite}</td>
+                  <td style={tdStyle({ textAlign: 'right' })}>{fmt(d.prix_applique)}</td>
+                  <td style={tdStyle({ textAlign: 'right' })}>{fmt(total)}</td>
+                </tr>
+              )
+            })}
+            {/* Zone vide fixe */}
+            <tr>
+              <td colSpan={5} style={{
+                border: '1px solid #aaa',
+                height: '40mm',
+                verticalAlign: 'top',
+                padding: '2px',
+              }}>&nbsp;</td>
+            </tr>
+            {/* Total */}
+            <tr>
+              <td colSpan={4} style={{ ...tdStyle({}), textAlign: 'right', fontWeight: 'bold', borderTop: '2px solid #000' }}>
+                Total Facture
+              </td>
+              <td style={{ ...tdStyle({ textAlign: 'right' }), fontWeight: 'bold', borderTop: '2px solid #000' }}>
+                {fmt(vente.total_net)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-
-      {/* Pied — collé en bas, ne se coupe pas */}
+      {/* Pied */}
       <div style={{
         fontSize: '10px',
         borderTop: '1px solid #ccc',
@@ -160,7 +168,12 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
         <div style={{ textAlign: 'center', marginTop: '2mm', borderTop: '1px solid #000', paddingTop: '1.5mm' }}>
           Facture arrêtée à la somme de : <strong>{fmt(vente.total_net)} FCFA</strong>
         </div>
-        <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '1.5mm', fontStyle: 'italic' }}>
+        {boutique.mention_legale && (
+          <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '1.5mm', fontStyle: 'italic' }}>
+            {boutique.mention_legale}
+          </div>
+        )}
+        <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '1mm', fontStyle: 'italic' }}>
           Les marchandises vendues ne sont ni reprises, ni échangées
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4mm', fontStyle: 'italic' }}>
@@ -173,7 +186,6 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
   )
 })
 
-// Helpers styles inline
 const thStyle = (extra: React.CSSProperties): React.CSSProperties => ({
   border: '1px solid #000',
   padding: '2px 4px',

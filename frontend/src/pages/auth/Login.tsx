@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Smartphone } from 'lucide-react'
+//import { Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -51,8 +51,8 @@ export default function Login() {
       <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#1A7A4A] rounded-2xl mb-4">
-            <Smartphone className="text-white" size={32} />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img src="/logo_3.png" alt="Hamed Telecom" className="w-32 h-32 object-contain" />
           </div>
           <h1 className="text-3xl text-[#1C1C1C] mb-2">Hamed Telecom</h1>
           <p className="text-[#6B7280]">Gestion de magasin électronique</p>

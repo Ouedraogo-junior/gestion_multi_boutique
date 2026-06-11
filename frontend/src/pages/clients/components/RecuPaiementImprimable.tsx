@@ -64,6 +64,7 @@ const RecuPaiementImprimable = forwardRef<HTMLDivElement, Props>(
             <div style={{ fontSize: '15px', fontWeight: 'bold' }}>{boutique.nom.toUpperCase()}</div>
             {boutique.adresse   && <div style={{ fontSize: '9px', marginTop: '1mm' }}>{boutique.adresse}</div>}
             {boutique.telephone && <div style={{ fontSize: '9px' }}>Tél : {boutique.telephone}</div>}
+            {boutique.ncc && <div style={{ fontSize: '9px' }}>NCC : {boutique.ncc}</div>}
             {boutique.slogan    && <div style={{ fontSize: '9px', fontStyle: 'italic', marginTop: '1mm' }}>{boutique.slogan}</div>}
           </div>
         </div>

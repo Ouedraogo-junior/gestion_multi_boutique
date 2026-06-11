@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 
 export interface VarianteForm {
   attributs: Record<string, string>
+  prix_achat:    string 
   prix_vente: string
   seuil_alerte: string
   stock_initial: string
@@ -15,16 +16,26 @@ interface Props {
   variantes: VarianteForm[]
   onChange: (v: VarianteForm[]) => void
   attributsDisponibles: string[]
+  isEdit?: boolean
 }
 
 const emptyVariante = (): VarianteForm => ({
   attributs: {},
+  prix_achat: '',
   prix_vente: '',
   seuil_alerte: '',
   stock_initial: '',
 })
 
-export default function VarianteSection({ variantes, onChange, attributsDisponibles }: Props) {
+// 1. Ajouter isEdit à l'interface Props
+interface Props {
+  variantes: VarianteForm[]
+  onChange: (v: VarianteForm[]) => void
+  attributsDisponibles: string[]
+  isEdit?: boolean  // ← ajouter
+}
+
+export default function VarianteSection({ variantes, onChange, attributsDisponibles, isEdit = false }: Props) {
   const [newAttrKey, setNewAttrKey] = useState('')
 
   const addVariante = () => onChange([...variantes, emptyVariante()])
@@ -138,7 +149,17 @@ export default function VarianteSection({ variantes, onChange, attributsDisponib
           </div>
 
           {/* Prix + seuil + stock initial */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${isEdit ? 'grid-cols-3' : 'grid-cols-4'}`}>  {/* ← 3 → 4 colonnes */}
+            <div className="space-y-1">
+              <Label className="text-xs">Prix achat (FCFA)</Label>
+              <Input
+                type="number"
+                value={v.prix_achat}
+                onChange={e => updateVariante(i, 'prix_achat', e.target.value)}
+                placeholder="0"
+                className="h-8 text-sm"
+              />
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Prix vente (FCFA)</Label>
               <Input
@@ -159,6 +180,7 @@ export default function VarianteSection({ variantes, onChange, attributsDisponib
                 className="h-8 text-sm"
               />
             </div>
+             {!isEdit && (
             <div className="space-y-1">
               <Label className="text-xs">Stock initial</Label>
               <Input
@@ -169,6 +191,7 @@ export default function VarianteSection({ variantes, onChange, attributsDisponib
                 className="h-8 text-sm"
               />
             </div>
+          )}
           </div>
         </div>
       ))}

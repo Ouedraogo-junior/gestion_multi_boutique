@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\RapportController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AuditController;
+use App\Http\Controllers\Api\FournisseurController;
+use App\Http\Controllers\Api\ApprovisionnementController;
 
 // Auth publique
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -72,13 +74,6 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::get('/boutiques/{boutique_id}/rapports/export',   [RapportController::class, 'export']);
         Route::get('/rapports/consolide/export',                 [RapportController::class, 'exportConsolide']);
 
-        // Utilisateurs
-        Route::get('/boutiques/{boutique_id}/users',                    [UserController::class, 'index']);
-        Route::post('/boutiques/{boutique_id}/users',                   [UserController::class, 'store']);
-        Route::put('/boutiques/{boutique_id}/users/{id}',               [UserController::class, 'update']);
-        Route::patch('/boutiques/{boutique_id}/users/{id}/toggle-actif',[UserController::class, 'toggleActif']);
-        Route::post('/boutiques/{boutique_id}/users/{id}/reset-password',[UserController::class, 'resetPassword']);
-
         // Audit
         Route::get('/boutiques/{boutique_id}/audit', [AuditController::class, 'boutique']);
     });
@@ -125,6 +120,24 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
 
         // Tableau de bord 
         Route::get('/boutiques/{boutique_id}/dashboard', [DashboardController::class, 'boutique']);
+
+        // Fournisseurs
+        Route::get('/boutiques/{boutique_id}/fournisseurs', [FournisseurController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/fournisseurs', [FournisseurController::class, 'store']);
+        Route::put('/boutiques/{boutique_id}/fournisseurs/{id}', [FournisseurController::class, 'update']);
+
+        // Approvisionnements
+        Route::get('/boutiques/{boutique_id}/approvisionnements', [ApprovisionnementController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/approvisionnements', [ApprovisionnementController::class, 'store']);
+        Route::get('/boutiques/{boutique_id}/approvisionnements/{id}', [ApprovisionnementController::class, 'show']);
+
+        // Utilisateurs
+        Route::get('/boutiques/{boutique_id}/users',                    [UserController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/users',                   [UserController::class, 'store']);
+        Route::put('/boutiques/{boutique_id}/users/{id}',               [UserController::class, 'update']);
+        Route::patch('/boutiques/{boutique_id}/users/{id}/toggle-actif',[UserController::class, 'toggleActif']);
+        Route::post('/boutiques/{boutique_id}/users/{id}/reset-password',[UserController::class, 'resetPassword']);
+
     });
 
     // Consolidé Super Admin

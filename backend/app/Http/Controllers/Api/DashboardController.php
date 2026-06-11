@@ -11,9 +11,13 @@ use App\Models\Vente;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Traits\PrixAchatTrait;
+
 
 class DashboardController extends Controller
 {
+    use PrixAchatTrait;
+
     // -------------------------------------------------------
     // Dashboard boutique (Admin + Vendeur)
     // -------------------------------------------------------
@@ -101,7 +105,7 @@ class DashboardController extends Controller
             $coutAchatMois = 0;
             foreach ($ventesMois->load('details.variante.produit') as $vente) {
                 foreach ($vente->details as $detail) {
-                    $coutAchatMois += ($detail->variante?->produit?->prix_achat ?? 0) * $detail->quantite;
+                    $coutAchatMois += $this->getPrixAchatVariante($detail->variante) * $detail->quantite;
                 }
             }
 
@@ -116,7 +120,7 @@ class DashboardController extends Controller
             $coutAchatAujourdhui = 0;
             foreach ($ventesAujourdhui->load('details.variante.produit') as $vente) {
                 foreach ($vente->details as $detail) {
-                    $coutAchatAujourdhui += ($detail->variante?->produit?->prix_achat ?? 0) * $detail->quantite;
+                    $coutAchatAujourdhui += $this->getPrixAchatVariante($detail->variante) * $detail->quantite;
                 }
             }
 
@@ -201,9 +205,9 @@ class DashboardController extends Controller
                                ->count();
 
             $valeurStock = Variante::where('boutique_id', $boutique->id)
-                                   ->with('produit')
-                                   ->get()
-                                   ->sum(fn($v) => $v->stock_actuel * ($v->produit?->prix_achat ?? 0));
+                                    ->with('produit')
+                                    ->get()
+                                    ->sum(fn($v) => $v->stock_actuel * $this->getPrixAchatVariante($v));
 
             $dettes = DB::select("
                 SELECT COALESCE(SUM(vp.montant), 0) - COALESCE(SUM(pc.montant), 0) AS total

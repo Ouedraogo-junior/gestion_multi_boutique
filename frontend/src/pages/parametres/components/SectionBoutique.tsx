@@ -12,7 +12,7 @@ interface Props { boutiqueId: number }
 
 export default function SectionBoutique({ boutiqueId }: Props) {
   const [form, setForm] = useState({
-    nom: '', adresse: '', telephone: '', slogan: '', mention_legale: ''
+    nom: '', adresse: '', telephone: '', slogan: '', ncc: '', mention_legale: ''
   })
   const [logoActuel, setLogoActuel]   = useState<string | null>(null)
   const [logoFichier, setLogoFichier] = useState<File | null>(null)
@@ -29,6 +29,7 @@ export default function SectionBoutique({ boutiqueId }: Props) {
         adresse:        b.adresse        ?? '',
         telephone:      b.telephone      ?? '',
         slogan:         b.slogan         ?? '',
+        ncc:            b.ncc            ?? '',
         mention_legale: b.mention_legale ?? '',
       })
       setLogoActuel(b.logo_url ?? null)
@@ -156,6 +157,14 @@ export default function SectionBoutique({ boutiqueId }: Props) {
             <Label>Slogan</Label>
             <Input value={form.slogan} onChange={e => set('slogan', e.target.value)} />
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label>NCC (Numéro de compte contribuable)</Label>
+          <Input
+            value={form.ncc}
+            onChange={e => set('ncc', e.target.value)}
+            placeholder="Ex: 1329951D"
+          />
         </div>
         <div className="space-y-2">
           <Label>Mention légale</Label>

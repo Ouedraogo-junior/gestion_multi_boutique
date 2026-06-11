@@ -9,6 +9,7 @@ use App\Models\Variante;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\Fournisseur;
 
 class ProduitController extends Controller
 {
@@ -52,6 +53,7 @@ class ProduitController extends Controller
             'has_variantes'            => 'required|boolean',
             'variantes'                => 'required_if:has_variantes,true|array',
             'variantes.*.attributs'    => 'required|array',
+            'variantes.*.prix_achat'   => 'nullable|numeric|min:0',
             'variantes.*.prix_vente'   => 'nullable|numeric|min:0',
             'variantes.*.seuil_alerte' => 'nullable|integer|min:0',
             'variantes.*.stock_initial'=> 'nullable|integer|min:0',  // ← ajouté
@@ -60,6 +62,23 @@ class ProduitController extends Controller
         DB::beginTransaction();
 
         try {
+
+            if (!empty($data['fournisseur_nom'])) {
+                Fournisseur::firstOrCreate(
+                    [
+                        'boutique_id' => $boutique_id,
+                        'nom'         => $data['fournisseur_nom'],
+                    ],
+                    [
+                        'telephone'  => $data['fournisseur_telephone'] ?? null,
+                        'adresse'    => $data['fournisseur_contact']   ?? null,
+                        'provenance' => null,
+                        'notes'      => $data['fournisseur_notes']     ?? null,
+                        'actif'      => true,
+                    ]
+                );
+            }
+
             $produit = Produit::create([
                 ...$data,
                 'boutique_id' => $boutique_id,
@@ -76,6 +95,7 @@ class ProduitController extends Controller
                         'produit_id'   => $produit->id,
                         'boutique_id'  => $boutique_id,
                         'attributs'    => $v['attributs'],
+                        'prix_achat'   => $v['prix_achat'] ?? null,
                         'prix_vente'   => $v['prix_vente'] ?? $produit->prix_vente,
                         'stock_actuel' => $stockInitial,
                         'seuil_alerte' => $v['seuil_alerte'] ?? $produit->seuil_alerte,
@@ -144,6 +164,21 @@ class ProduitController extends Controller
         $produit = Produit::where('boutique_id', $boutique_id)->findOrFail($id);
         $avant = $produit->toArray();
 
+        if (!empty($data['fournisseur_nom'])) {
+            Fournisseur::firstOrCreate(
+                [
+                    'boutique_id' => $boutique_id,
+                    'nom'         => $data['fournisseur_nom'],
+                ],
+                [
+                    'telephone' => $data['fournisseur_telephone'] ?? null,
+                    'adresse'   => $data['fournisseur_contact']   ?? null,
+                    'notes'     => $data['fournisseur_notes']     ?? null,
+                    'actif'     => true,
+                ]
+            );
+        }
+
         $data = $request->validate([
             'designation'           => 'sometimes|string|max:200',
             'categorie_id'          => 'nullable|exists:referentiels,id',
@@ -182,6 +217,7 @@ class ProduitController extends Controller
 
         $data = $request->validate([
             'attributs'   => 'required|array',
+            'prix_achat'  => 'nullable|numeric|min:0',
             'prix_vente'  => 'nullable|numeric|min:0',
             'seuil_alerte'=> 'nullable|integer|min:0',
         ]);
@@ -190,6 +226,7 @@ class ProduitController extends Controller
             'produit_id'   => $produit->id,
             'boutique_id'  => $boutique_id,
             'attributs'    => $data['attributs'],
+            'prix_achat'   => $data['prix_achat'] ?? null,
             'prix_vente'   => $data['prix_vente'] ?? $produit->prix_vente,
             'stock_actuel' => 0,
             'seuil_alerte' => $data['seuil_alerte'] ?? $produit->seuil_alerte,
@@ -219,6 +256,7 @@ class ProduitController extends Controller
         $data = $request->validate([
             'attributs'   => 'sometimes|array',
             'prix_vente'  => 'sometimes|numeric|min:0',
+            'prix_achat'  => 'sometimes|numeric|min:0',
             'seuil_alerte'=> 'sometimes|integer|min:0',
             'actif'       => 'sometimes|boolean',
         ]);

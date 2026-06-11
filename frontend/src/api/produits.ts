@@ -5,6 +5,7 @@ export interface Variante {
   produit_id: number
   boutique_id: number
   attributs: Record<string, string> | null
+  prix_achat: number | null
   prix_vente: number | null
   stock_actuel: number
   seuil_alerte: number

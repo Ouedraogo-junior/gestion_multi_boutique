@@ -22,6 +22,7 @@ class BoutiqueController extends Controller
             'adresse'        => 'nullable|string|max:255',
             'telephone'      => 'nullable|string|max:30',
             'slogan'         => 'nullable|string|max:255',
+            'ncc'            => 'nullable|string|max:50',
             'mention_legale' => 'nullable|string',
             'logo' => 'sometimes|nullable|file|mimes:jpeg,png,jpg,gif,webp|max:2048',
         ]);
@@ -57,6 +58,7 @@ class BoutiqueController extends Controller
             'adresse'        => 'nullable|string|max:255',
             'telephone'      => 'nullable|string|max:30',
             'slogan'         => 'nullable|string|max:255',
+            'ncc'            => 'nullable|string|max:50',
             'mention_legale' => 'nullable|string',
             'logo' => 'sometimes|nullable|file|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'remove_logo' => 'sometimes|boolean',

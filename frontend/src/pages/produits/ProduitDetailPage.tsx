@@ -70,16 +70,14 @@ export default function ProduitDetailPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500 mb-1">Prix achat</p>
-          <p className="text-lg font-medium text-gray-900">{formatMontant(produit.prix_achat)}</p>
-        </div>
+        {/* Prix achat — masqué si has_variantes */}
         {!produit.has_variantes && (
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500 mb-1">Prix vente</p>
-            <p className="text-lg font-medium text-gray-900">{formatMontant(produit.prix_vente)}</p>
+            <p className="text-xs text-gray-500 mb-1">Prix achat</p>
+            <p className="text-lg font-medium text-gray-900">{formatMontant(produit.prix_achat)}</p>
           </div>
         )}
+        
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Stock total</p>
           <p className="text-lg font-medium text-gray-900">{totalStock}</p>
@@ -128,26 +126,33 @@ export default function ProduitDetailPage() {
 
         {/* Prix par variante — uniquement si has_variantes */}
         {produit.has_variantes && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="text-base font-medium text-gray-800">Prix par variante</h2>
-            <Separator />
-            <div className="space-y-2">
-              {produit.variantes?.map(v => {
-                const label = v.attributs && Object.keys(v.attributs).length > 0
-                  ? Object.entries(v.attributs).map(([k, val]) => `${k}: ${val}`).join(' / ')
-                  : 'Défaut'
-                return (
-                  <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                    <span className="text-sm text-gray-700">{label}</span>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <h2 className="text-base font-medium text-gray-800">Prix par variante</h2>
+          <Separator />
+          <div className="space-y-2">
+            {produit.variantes?.map(v => {
+              const label = v.attributs && Object.keys(v.attributs).length > 0
+                ? Object.entries(v.attributs).map(([k, val]) => `${k}: ${val}`).join(' / ')
+                : 'Défaut'
+              return (
+                <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <span className="text-sm text-gray-700">{label}</span>
+                  <div className="flex items-center gap-4">
+                    {v.prix_achat != null && (
+                      <span className="text-xs text-gray-400">
+                        Achat : {formatMontant(v.prix_achat)}
+                      </span>
+                    )}
                     <span className="text-sm font-semibold text-[#1A7A4A]">
                       {formatMontant(v.prix_vente ?? produit.prix_vente)}
                     </span>
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              )
+            })}
           </div>
-        )}
+        </div>
+      )}
       </div>
 
       {/* Fournisseur */}

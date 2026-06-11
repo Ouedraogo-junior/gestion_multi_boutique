@@ -17,6 +17,15 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class RapportController extends Controller
 {
+
+    private function getPrixAchatVariante(Variante $variante): float
+    {
+        // Si la variante a son propre prix_achat → on l'utilise
+        // Sinon → fallback sur le prix_achat du produit (produit sans variantes)
+        return $variante->prix_achat ?? $variante->produit?->prix_achat ?? 0;
+    }
+
+
     // -------------------------------------------------------
     // Rapport CA par boutique
     // -------------------------------------------------------
@@ -62,7 +71,7 @@ class RapportController extends Controller
         foreach ($ventes as $vente) {
             foreach ($vente->details as $detail) {
                 $variante  = $detail->variante ?? Variante::with('produit')->find($detail->variante_id);
-                $prixAchat = $variante?->produit?->prix_achat ?? 0;
+                $prixAchat = $this->getPrixAchatVariante($variante);
                 $coutAchat += $prixAchat * $detail->quantite;
             }
         }
@@ -117,7 +126,7 @@ class RapportController extends Controller
                              ->with('produit')
                              ->get();
 
-        $valeurStock = $variantes->sum(fn($v) => $v->stock_actuel * ($v->produit?->prix_achat ?? 0));
+        $valeurStock = $variantes->sum(fn($v) => $v->stock_actuel * $this->getPrixAchatVariante($v));
         $enAlerte    = $variantes->filter(fn($v) => $v->stock_actuel <= $v->seuil_alerte);
 
         return response()->json([
@@ -133,7 +142,7 @@ class RapportController extends Controller
                 'stock_actuel'  => $v->stock_actuel,
                 'seuil_alerte'  => $v->seuil_alerte,
                 'en_alerte'     => $v->stock_actuel <= $v->seuil_alerte,
-                'valeur'        => $v->stock_actuel * ($v->produit?->prix_achat ?? 0),
+                'valeur'        => $v->stock_actuel * $this->getPrixAchatVariante($v),
             ]),
         ]);
     }
@@ -232,7 +241,7 @@ class RapportController extends Controller
             $coutAchat = 0;
             foreach ($ventes as $vente) {
                 foreach ($vente->details as $detail) {
-                    $coutAchat += ($detail->variante?->produit?->prix_achat ?? 0) * $detail->quantite;
+                    $coutAchat += $this->getPrixAchatVariante($detail->variante) * $detail->quantite;
                 }
             }
 
@@ -243,9 +252,9 @@ class RapportController extends Controller
             $benefice  = $ca - $retours - $coutAchat - $depenses;
 
             $valeurStock = Variante::where('boutique_id', $boutique->id)
-                                   ->with('produit')
-                                   ->get()
-                                   ->sum(fn($v) => $v->stock_actuel * ($v->produit?->prix_achat ?? 0));
+                       ->with('produit')
+                       ->get()
+                       ->sum(fn($v) => $v->stock_actuel * $this->getPrixAchatVariante($v));
 
             $dettes = DB::select("
                 SELECT COALESCE(SUM(vp.montant), 0) - COALESCE(SUM(pc.montant), 0) AS solde

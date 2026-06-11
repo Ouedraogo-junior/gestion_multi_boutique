@@ -47,6 +47,14 @@ import UtilisateursPage from '@/pages/utilisateurs/UtilisateursPage'
 // Audit
 import AuditPage from '@/pages/audit/AuditPage'
 
+// Approvisionnements
+import ApprovisionnementsPage      from '@/pages/approvisionnements/ApprovisionnемentsPage'
+import ReceptionMarchandisesPage from '@/pages/approvisionnements/ReceptionMarchandisesPage'
+import NouvelApprovisionnementPage from '@/pages/approvisionnements/NouvelApprovisionnementPage'
+import ApprovisionnementDetailPage from '@/pages/approvisionnements/ApprovisionnementDetailPage'
+
+
+
 
 import { ROLES } from './utils/constants'
 
@@ -101,6 +109,12 @@ export default function App() {
               <Route path="/boutiques/:boutiqueId/dashboard" element={
                 <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
                   <DashboardBoutiqueRoute />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/boutiques/:boutiqueId/approvisionnements/reception" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <ReceptionMarchandisesPage />
                 </ProtectedRoute>
               } />
 
@@ -186,6 +200,24 @@ export default function App() {
                   <AuditPage />
                 </ProtectedRoute>
               } />
+
+              {/* Approvisionnements — nouveau AVANT /:id */}
+              <Route path="/boutiques/:boutiqueId/approvisionnements" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <ApprovisionnementsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/boutiques/:boutiqueId/approvisionnements/nouveau" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <NouvelApprovisionnementPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/boutiques/:boutiqueId/approvisionnements/:approId" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <ApprovisionnementDetailPage /> 
+                </ProtectedRoute>
+              } />
+
             </Route>
 
             <Route path="*" element={<Navigate to="/login" replace />} />

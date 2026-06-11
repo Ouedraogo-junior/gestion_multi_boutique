@@ -10,7 +10,7 @@ class Variante extends Model
 {
     protected $fillable = [
         'produit_id', 'boutique_id', 'attributs', 'prix_vente',
-        'stock_actuel', 'seuil_alerte', 'est_defaut', 'actif',
+        'stock_actuel', 'seuil_alerte', 'est_defaut', 'actif', 'prix_achat',
     ];
 
     protected function casts(): array
@@ -20,6 +20,7 @@ class Variante extends Model
             'est_defaut'  => 'boolean',
             'actif'       => 'boolean',
             'prix_vente'  => 'float',
+            'prix_achat'  => 'float',
         ];
     }
 

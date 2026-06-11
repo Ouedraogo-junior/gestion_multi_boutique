@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Boutique extends Model
 {
     protected $fillable = [
-        'nom', 'adresse', 'telephone', 'logo', 'slogan', 'mention_legale', 'actif',
+        'nom', 'adresse', 'telephone', 'logo', 'slogan', 'ncc', 'mention_legale', 'actif',
     ];
 
     protected function casts(): array

@@ -48,10 +48,16 @@ class Produit extends Model
     public static function genererReference(int $boutiqueId): string
     {
         $prefixe = 'PROD-' . $boutiqueId . '-' . now()->format('Ym') . '-';
-        $count = self::where('boutique_id', $boutiqueId)
-                     ->where('reference', 'like', $prefixe . '%')
-                     ->lockForUpdate()
-                     ->count();
-        return $prefixe . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
+
+        $dernier = self::where('boutique_id', $boutiqueId)
+                    ->where('reference', 'like', $prefixe . '%')
+                    ->lockForUpdate()
+                    ->max('reference');
+
+        $sequence = $dernier
+            ? (int) substr($dernier, strrpos($dernier, '-') + 1)
+            : 0;
+
+        return $prefixe . str_pad($sequence + 1, 4, '0', STR_PAD_LEFT);
     }
 }

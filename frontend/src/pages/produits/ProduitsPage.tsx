@@ -54,19 +54,21 @@ export default function ProduitsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl text-[#1C1C1C]">Produits</h1>
-          <p className="text-gray-500 text-sm mt-1">{produits.length} produit{produits.length > 1 ? 's' : ''}</p>
-        </div>
-        <Button
-          onClick={() => navigate(`/boutiques/${id}/produits/nouveau`)}
-          className="bg-[#1A7A4A] hover:bg-[#145C38] text-white"
-        >
-          <Plus size={18} className="mr-2" />
-          Ajouter un produit
-        </Button>
+     <div className="flex items-center justify-between">
+      <div>
+        <h1 className="text-2xl text-[#1C1C1C]">Produits</h1>
+        <p className="text-gray-500 text-sm mt-1">
+          {produits.length} produit{produits.length > 1 ? 's' : ''}
+        </p>
       </div>
+      <Button
+        onClick={() => navigate(`/boutiques/${id}/produits/nouveau`)}
+        className="bg-[#1A7A4A] hover:bg-[#145C38] text-white"
+      >
+        <Plus size={18} className="mr-2" />
+        Ajouter un produit
+      </Button>
+    </div>
 
       {/* Filtres */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">

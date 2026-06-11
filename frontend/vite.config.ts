@@ -10,6 +10,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [],
+        // Ne pas cacher index.html
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'android-chrome-192x192.png', 'android-chrome-512x512.png'],
       manifest: {
         name: 'Hamed Telecom',

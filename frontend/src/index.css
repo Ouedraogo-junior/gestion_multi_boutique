@@ -161,7 +161,8 @@
   body * {
     visibility: hidden;
   }
-  #recu-print, #recu-print * {
+  #recu-print, #recu-print *,
+  #recu-appro-print, #recu-appro-print * {
     visibility: visible;
   }
 }

@@ -10,6 +10,7 @@ export interface Boutique {
   logo_url?: string
   logo_base64?: string | null
   slogan?: string
+  ncc?: string | null
   actif: boolean
   mention_legale?: string
 }
