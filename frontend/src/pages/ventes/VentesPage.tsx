@@ -148,7 +148,11 @@ export default function VentesPage() {
                 {ventes.map(v => {
                   const statut = STATUT_LABELS[v.statut]
                   return (
-                    <tr key={v.id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                    <tr
+                      key={v.id}
+                      onClick={() => navigate(`/boutiques/${id}/ventes/${v.id}`)}
+                      className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors cursor-pointer"
+                    >
                       <td className="py-3 px-4 text-sm font-mono text-gray-600">
                         {v.numero_facture ?? <span className="text-gray-300">—</span>}
                       </td>
@@ -200,7 +204,7 @@ export default function VentesPage() {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => navigate(`/boutiques/${id}/ventes/${v.id}`)}
+                            onClick={e => { e.stopPropagation(); navigate(`/boutiques/${id}/ventes/${v.id}`) }}
                             className="text-gray-400 hover:text-[#29ABE2] transition-colors"
                             title="Voir détail"
                           >
@@ -209,7 +213,7 @@ export default function VentesPage() {
 
                           {v.statut === 'brouillon' && (
                             <button
-                              onClick={() => navigate(`/boutiques/${id}/ventes/${v.id}/continuer`)}
+                              onClick={e => { e.stopPropagation(); navigate(`/boutiques/${id}/ventes/${v.id}/continuer`) }}
                               className="text-xs text-gray-400 hover:text-[#1A7A4A] transition-colors border border-gray-200 px-2 py-0.5 rounded"
                             >
                               Continuer
@@ -217,7 +221,7 @@ export default function VentesPage() {
                           )}
                           {isAdmin && v.statut === 'validee' && (
                             <button
-                              onClick={() => setAnnulerTarget(v)}
+                              onClick={e => { e.stopPropagation(); setAnnulerTarget(v) }}
                               className="text-xs text-gray-400 hover:text-[#E8314A] transition-colors border border-gray-200 px-2 py-0.5 rounded"
                             >
                               Annuler

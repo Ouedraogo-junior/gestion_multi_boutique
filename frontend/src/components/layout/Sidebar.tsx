@@ -28,20 +28,31 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const boutiqueId = user?.role === ROLES.SUPER_ADMIN
   ? boutiqueActive?.id
   : user?.boutique_id
+
+
   const base = `/boutiques/${boutiqueId}`
+
 
 //   console.log('user:', user)
 // console.log('boutiqueId:', user?.boutique_id)
 
-  const superAdminItems: MenuItem[] = [
-    { path: '/dashboard',      icon: LayoutDashboard, label: 'Tableau de bord'},
-    { path: '/boutiques',      icon: Store,           label: 'Boutiques'},
-    { path: `${base}/clients`,      icon: Users,           label: 'Clients & Dettes'},
-    { path: `${base}/rapports`,     icon: BarChart3,       label: 'Rapports'},
-    { path: `${base}/utilisateurs`, icon: Users,           label: 'Utilisateurs'},
-    { path: `${base}/audit`,        icon: ClipboardList,   label: 'Audit'},
-    { path: `${base}/parametres`, icon: Settings, label: 'Paramètres'},
+  const superAdminItemsAvecBoutique: MenuItem[] = [
+    { path: `${base}/clients`,      icon: Users,         label: 'Clients & Dettes' },
+    { path: `${base}/rapports`,     icon: BarChart3,     label: 'Rapports' },
+    { path: `${base}/utilisateurs`, icon: Users,         label: 'Utilisateurs' },
+    { path: `${base}/audit`,        icon: ClipboardList, label: 'Audit' },
+    { path: `${base}/parametres`,   icon: Settings,      label: 'Paramètres' },
   ]
+
+  // Items Super Admin toujours visibles
+  const superAdminItemsGlobaux: MenuItem[] = [
+    { path: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
+    { path: '/boutiques', icon: Store,           label: 'Boutiques' },
+  ]
+
+  const superAdminItems: MenuItem[] = boutiqueActive
+    ? [...superAdminItemsGlobaux, ...superAdminItemsAvecBoutique]
+    : superAdminItemsGlobaux
 
   const adminItems: MenuItem[] = [
     { path: `${base}/dashboard`,    icon: LayoutDashboard, label: 'Tableau de bord'},
@@ -151,6 +162,19 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </button>
             )
           })}
+
+          {/* Message si Super Admin sans boutique sélectionnée */}
+          {user?.role === ROLES.SUPER_ADMIN && !boutiqueActive && (
+            <div className="mt-4 mx-1 p-3 rounded-lg border border-dashed border-[#1A7A4A]/30 bg-[#F4F6F5]">
+              <div className="flex items-center gap-2 mb-1">
+                <Store size={14} className="text-[#1A7A4A]" />
+                <p className="text-xs font-medium text-[#1A7A4A]">Aucune boutique active</p>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                Sélectionnez une boutique en haut de l'écran pour accéder à ses données.
+              </p>
+            </div>
+          )}
         </nav>
 
         {/* User + logout */}

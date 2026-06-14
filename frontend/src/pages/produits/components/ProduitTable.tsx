@@ -64,7 +64,8 @@ export default function ProduitTable({ produits, boutiqueId, onToggle, onDelete 
                 {/* Ligne produit */}
                 <tr
                   key={p.id}
-                  className={`border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors ${
+                  onClick={() => navigate(`/boutiques/${boutiqueId}/produits/${p.id}`)}
+                  className={`border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors cursor-pointer ${
                     isOpen ? 'bg-[#F4F6F5]' : ''
                   }`}
                 >
@@ -73,7 +74,7 @@ export default function ProduitTable({ produits, boutiqueId, onToggle, onDelete 
                     {p.has_variantes && variantes.length > 0 ? (
                       <button
                         type="button"
-                        onClick={() => toggleExpand(p.id)}
+                        onClick={e => { e.stopPropagation(); toggleExpand(p.id) }}
                         className="text-gray-400 hover:text-gray-600"
                       >
                         {isOpen
@@ -124,21 +125,21 @@ export default function ProduitTable({ produits, boutiqueId, onToggle, onDelete 
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => navigate(`/boutiques/${boutiqueId}/produits/${p.id}`)}
+                        onClick={e => { e.stopPropagation(); navigate(`/boutiques/${boutiqueId}/produits/${p.id}`) }}
                         className="text-gray-400 hover:text-[#29ABE2] transition-colors"
                         title="Voir détails"
                       >
                         <Eye size={17} />
                       </button>
                       <button
-                        onClick={() => navigate(`/boutiques/${boutiqueId}/produits/${p.id}/modifier`)}
+                        onClick={e => { e.stopPropagation(); navigate(`/boutiques/${boutiqueId}/produits/${p.id}/modifier`) }}
                         className="text-gray-400 hover:text-[#1A7A4A] transition-colors"
                         title="Modifier"
                       >
                         <Pencil size={17} />
                       </button>
                       <button
-                        onClick={() => onToggle(p)}
+                        onClick={e => { e.stopPropagation(); onToggle(p) }}
                         className={`transition-colors ${
                           p.actif
                             ? 'text-gray-400 hover:text-[#E8314A]'
@@ -149,7 +150,7 @@ export default function ProduitTable({ produits, boutiqueId, onToggle, onDelete 
                         {p.actif ? <ToggleLeft size={17} /> : <ToggleRight size={17} />}
                       </button>
                       <button
-                        onClick={() => onDelete(p)}
+                        onClick={e => { e.stopPropagation(); onDelete(p) }}
                         className="text-gray-400 hover:text-[#E8314A] transition-colors"
                         title="Supprimer"
                       >

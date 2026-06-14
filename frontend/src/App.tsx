@@ -26,6 +26,7 @@ import VenteDetailPage  from './pages/ventes/VenteDetailPage'
 
 // Clients
 import ClientsPage from './pages/clients/ClientsPage'
+import ClientDetailPage from './pages/clients/ClientDetailPage'
 
 // Dépenses
 import DepensesPage from './pages/depenses/DepensesPage'
@@ -166,6 +167,12 @@ export default function App() {
               <Route path="/boutiques/:boutiqueId/clients" element={
                 <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
                   <ClientsPage />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/boutiques/:boutiqueId/clients/:clientId" element={
+                <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
+                  <ClientDetailPage />
                 </ProtectedRoute>
               } />
 

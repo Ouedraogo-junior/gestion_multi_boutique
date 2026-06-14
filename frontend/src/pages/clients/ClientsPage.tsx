@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Plus, Search, Pencil, CreditCard, Printer } from 'lucide-react'
+import { useParams,  useNavigate } from 'react-router-dom'
+import { Plus, Search, Pencil, CreditCard, Printer, Eye } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,8 @@ export default function ClientsPage() {
   const [clientPaiement, setClientPaiement] = useState<Client | null>(null)
 
   const [filters, setFilters] = useState<ClientFilterValues>(defaultFilters)
+
+  const navigate = useNavigate()
 
   // Historique paiements : Map clientId → dernier paiement
   const [historiquesPaiements, setHistoriquesPaiements] =
@@ -214,7 +216,11 @@ export default function ClientsPage() {
                   const dette      = Number(c.total_dette ?? 0)
                   const dernierPai = historiquesPaiements[c.id]
                   return (
-                    <tr key={c.id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                    <tr
+                      key={c.id}
+                      onClick={() => navigate(`/boutiques/${boutiqueId}/clients/${c.id}`)}
+                      className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors cursor-pointer"
+                    >
                       <td className="py-3 px-4">
                         <p className="text-sm font-medium text-[#1C1C1C]">
                           {[c.prenom, c.nom].filter(Boolean).join(' ')}
@@ -248,26 +254,37 @@ export default function ClientsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
+
+                          {/* Bouton dédié vers le détail */}
                           <button
-                            onClick={() => { setClientEdit(c); setFormOpen(true) }}
+                            onClick={e => { e.stopPropagation(); navigate(`/boutiques/${boutiqueId}/clients/${c.id}`) }}
+                            className="text-gray-400 hover:text-[#1A7A4A] transition-colors"
+                            title="Voir le détail"
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          <button
+                            onClick={e => { e.stopPropagation(); setClientEdit(c); setFormOpen(true) }}
                             className="text-gray-400 hover:text-[#1A7A4A] transition-colors"
                             title="Modifier"
                           >
                             <Pencil size={16} />
                           </button>
+
                           {dette > 0 && (
                             <button
-                              onClick={() => setClientPaiement(c)}
+                              onClick={e => { e.stopPropagation(); setClientPaiement(c) }}
                               className="text-gray-400 hover:text-[#29ABE2] transition-colors"
                               title="Enregistrer un paiement"
                             >
                               <CreditCard size={16} />
                             </button>
                           )}
-                          {/* Bouton impression permanent si au moins un paiement existe */}
+
                           {dernierPai && (
                             <button
-                              onClick={() => lancerImpression(c)}
+                              onClick={e => { e.stopPropagation(); lancerImpression(c) }}
                               className="text-gray-400 hover:text-[#1A7A4A] transition-colors"
                               title="Réimprimer le dernier reçu"
                             >

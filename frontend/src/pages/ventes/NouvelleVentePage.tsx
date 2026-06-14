@@ -120,17 +120,28 @@ export default function NouvelleVentePage() {
   }
 
   const buildPaiements = () => {
-    const especes     = Number(paiement.especes)      || 0
-    const mobileMoney = Number(paiement.mobile_money) || 0
-    const credit      = totalNet - especes - mobileMoney
+    let resteAAffecter = totalNet
+
+    const especesRecu     = Number(paiement.especes)      || 0
+    const mobileMoneyRecu = Number(paiement.mobile_money) || 0
+
+    const especesAffecte = Math.min(especesRecu, resteAAffecter)
+    resteAAffecter -= especesAffecte
+
+    const mobileMoneyAffecte = Math.min(mobileMoneyRecu, resteAAffecter)
+    resteAAffecter -= mobileMoneyAffecte
+
+    const credit = resteAAffecter
+
     const result = []
-    if (especes > 0)     result.push({ mode: 'especes' as const, montant: especes })
-    if (mobileMoney > 0) result.push({
+    if (especesAffecte > 0) result.push({ mode: 'especes' as const, montant: especesAffecte })
+    if (mobileMoneyAffecte > 0) result.push({
       mode: 'mobile_money' as const,
-      montant: mobileMoney,
+      montant: mobileMoneyAffecte,
       operateur_id: paiement.operateur_id ? Number(paiement.operateur_id) : null,
     })
     if (credit > 0) result.push({ mode: 'credit' as const, montant: credit })
+
     return result
   }
 
