@@ -95,10 +95,21 @@ export default function RechercheProduitsInput({ boutiqueId, onSelect }: Props) 
             >
               <div>
                 <p className="text-sm text-gray-900">{item.label}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 flex items-center gap-2">
                   Stock : {item.variante.stock_actuel} · Réf : {item.produit.reference}
+                  {item.variante.stock_actuel === 0 && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+                      Rupture
+                    </span>
+                  )}
+                  {item.variante.stock_actuel > 0 && item.variante.stock_actuel <= item.variante.seuil_alerte && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+                      Stock faible
+                    </span>
+                  )}
                 </p>
               </div>
+
               <div className="text-right ml-4 shrink-0">
                 <p className="text-sm font-medium text-[#1A7A4A]">
                   {formatMontant(item.variante.prix_vente ?? item.produit.prix_vente)}

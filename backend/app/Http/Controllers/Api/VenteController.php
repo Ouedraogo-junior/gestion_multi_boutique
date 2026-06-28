@@ -17,7 +17,7 @@ class VenteController extends Controller
     public function index(Request $request, int $boutique_id): JsonResponse
     {
         $query = Vente::where('boutique_id', $boutique_id)
-                      ->with(['client', 'vendeur', 'details.variante', 'paiements']);
+                      ->with(['client', 'vendeur', 'details.variante.produit', 'paiements']);
 
         if ($request->has('statut')) {
             $query->where('statut', $request->statut);
@@ -126,7 +126,7 @@ class VenteController extends Controller
             $request->auditModule = 'ventes';
             $request->auditDetails = ['vente_id' => $vente->id, 'total_net' => $totalNet];
 
-            return response()->json($vente->fresh()->load(['client', 'vendeur', 'details.variante', 'paiements']), 201);
+            return response()->json($vente->fresh()->load(['client', 'vendeur', 'details.variante.produit', 'paiements']), 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -192,7 +192,7 @@ class VenteController extends Controller
             }
 
             DB::commit();
-            return response()->json($vente->fresh()->load(['client', 'vendeur', 'details.variante', 'paiements']));
+            return response()->json($vente->fresh()->load(['client', 'vendeur', 'details.variante.produit', 'paiements']));
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -244,7 +244,7 @@ class VenteController extends Controller
             $request->auditModule = 'ventes';
             $request->auditDetails = ['vente_id' => $vente->id, 'total_net' => $vente->total_net];
 
-            return response()->json($vente->fresh()->load(['client', 'vendeur', 'details.variante', 'paiements']));
+            return response()->json($vente->fresh()->load(['client', 'vendeur', 'details.variante.produit', 'paiements']));
 
         } catch (\Exception $e) {
             DB::rollBack();

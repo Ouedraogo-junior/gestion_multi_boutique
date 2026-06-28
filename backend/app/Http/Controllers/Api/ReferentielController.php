@@ -23,7 +23,7 @@ class ReferentielController extends Controller
     public function store(Request $request, int $boutique_id): JsonResponse
     {
         $data = $request->validate([
-            'type'    => 'required|in:categorie_produit,attribut_variante,categorie_depense,operateur_mm,motif_retour',
+            'type' => 'required|in:categorie_produit,attribut_variante,categorie_depense,operateur_mm,motif_retour,mode_paiement_fournisseur',
             'libelle' => 'required|string|max:150',
             'ordre'   => 'nullable|integer',
         ]);

@@ -3,7 +3,7 @@ import { useBoutique } from '@/hooks/useBoutique'
 import {
   LayoutDashboard, ShoppingCart, Package, Users,
   Receipt, BarChart3, Settings, LogOut, X,
-  Store, FileText, RotateCcw, ClipboardList, Truck,
+  Store, FileText, RotateCcw, ClipboardList, Truck, Wallet,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ROLES } from '@/utils/constants'
@@ -59,6 +59,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { path: `${base}/ventes`, icon: ShoppingCart, label: 'Ventes'},
     { path: `${base}/produits`,     icon: Package,         label: 'Produits'},
     { path: `${base}/approvisionnements`, icon: Truck,     label: 'Approvisionnements'},
+    { path: `${base}/dettes-fournisseurs`, icon: Wallet, label: 'Dettes fournisseurs' },
     { path: `${base}/clients`,      icon: Users,           label: 'Clients & Dettes'},
     { path: `${base}/depenses`,     icon: Receipt,         label: 'Dépenses'},
     { path: `${base}/retours`,      icon: RotateCcw,       label: 'Retours'},
@@ -74,6 +75,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     { path: `${base}/ventes/nouvelle`, icon: ShoppingCart,label: 'Nouvelle vente'},
     { path: `${base}/produits`,        icon: Package,     label: 'Produits'},
     { path: `${base}/approvisionnements`, icon: Truck, label: 'Approvisionnements'},
+    { path: `${base}/dettes-fournisseurs`, icon: Wallet, label: 'Dettes fournisseurs' },
     { path: `${base}/clients`,         icon: Users,       label: 'Clients'},
     { path: `${base}/retours`,         icon: RotateCcw,   label: 'Retours'},
   ]

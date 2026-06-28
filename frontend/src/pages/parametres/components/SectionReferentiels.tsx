@@ -16,6 +16,7 @@ const TABS = [
   { key: TYPES_REFERENTIEL.CATEGORIE_DEPENSE,  label: 'Catégories dépenses'  },
   { key: TYPES_REFERENTIEL.OPERATEUR_MM,       label: 'Opérateurs MM'        },
   { key: TYPES_REFERENTIEL.MOTIF_RETOUR,       label: 'Motifs retour'        },
+  { key: TYPES_REFERENTIEL.MODE_PAIEMENT_FOURNISSEUR, label: 'Paiements fournisseurs' },
 ]
 
 function ReferentielList({ boutiqueId, type }: { boutiqueId: number; type: string }) {
@@ -119,7 +120,7 @@ export default function SectionReferentiels({ boutiqueId }: Props) {
     <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
       <h2 className="text-lg text-[#1C1C1C]">Référentiels</h2>
       <Tabs defaultValue={TYPES_REFERENTIEL.CATEGORIE_PRODUIT}>
-        <TabsList className="flex-wrap h-auto gap-1">
+        <TabsList className="flex flex-nowrap overflow-x-auto h-auto gap-1 w-full">
           {TABS.map(t => (
             <TabsTrigger key={t.key} value={t.key} className="text-xs">
               {t.label}

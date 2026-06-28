@@ -28,7 +28,12 @@ export default function ClientDetailPage() {
   const [loading,   setLoading]   = useState(true)
 
   const [paiementOpen, setPaiementOpen] = useState(false)
-  const [dernierPaiement, setDernierPaiement] = useState<PaiementHistorique | null>(null)
+  const [dernierPaiement, setDernierPaiement] = useState<{
+    montant: number
+    mode: 'especes' | 'mobile_money'
+    date: string
+    vente: { numero_facture: string; total_net: number; solde_restant: number }
+  } | null>(null)
 
   const recuRef = useRef<HTMLDivElement>(null)
   const [recuReady, setRecuReady] = useState(false)
@@ -57,7 +62,8 @@ export default function ClientDetailPage() {
       setTotalDette(resDettes.data.total_dette ?? 0)
       const liste: PaiementHistorique[] = resPaiements.data ?? []
       setPaiements(liste)
-      if (liste.length > 0) setDernierPaiement(liste[0])
+      const avecVente = liste.find(p => p.vente !== undefined)
+      if (avecVente?.vente) setDernierPaiement(avecVente as typeof dernierPaiement extends null ? never : NonNullable<typeof dernierPaiement>)
     } catch {
       toast.error('Erreur lors du chargement')
     } finally {

@@ -323,15 +323,19 @@ export default function ClientsPage() {
 
       {/* Zone impression cachée */}
       <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '148mm', zIndex: -1 }}>
-        {recuClient && historiquesPaiements[recuClient.id] && boutiqueActive && (
-          <RecuPaiementImprimable
-            ref={recuRef}
-            client={recuClient}
-            boutique={boutiqueActive}
-            paiement={historiquesPaiements[recuClient.id]}
-            logoBase64={boutiqueActive.logo_base64 ?? null}
-          />
-        )}
+        {(() => {
+          if (!recuClient) return null
+          const pai = historiquesPaiements[recuClient.id]
+          return pai?.vente && boutiqueActive ? (
+            <RecuPaiementImprimable
+              ref={recuRef}
+              client={recuClient}
+              boutique={boutiqueActive}
+              paiement={{ ...pai, vente: pai.vente }}
+              logoBase64={boutiqueActive.logo_base64 ?? null}
+            />
+          ) : null
+        })()}
       </div>
     </div>
   )

@@ -24,6 +24,7 @@ export const TYPES_REFERENTIEL = {
   CATEGORIE_DEPENSE: 'categorie_depense',
   OPERATEUR_MM:      'operateur_mm',
   MOTIF_RETOUR:      'motif_retour',
+  MODE_PAIEMENT_FOURNISSEUR: 'mode_paiement_fournisseur',
 } as const
 
 export const TYPES_MOUVEMENT = {

@@ -11,6 +11,7 @@ export interface Ligne {
   quantite: number
   remise_montant: number
   stock_actuel: number
+  seuil_alerte: number
 }
 
 interface Props {
@@ -25,16 +26,42 @@ export default function LigneVente({ ligne, index, onChange, onRemove }: Props) 
 
   return (
     <tr className="border-b border-gray-100">
-      <td className="py-3 px-3 text-sm text-gray-800">{ligne.label}</td>
       <td className="py-3 px-3">
-        <Input
-          type="number"
-          min={1}
-          max={ligne.stock_actuel}
-          value={ligne.quantite === 0 ? '' : ligne.quantite}
-          onChange={e => onChange(index, 'quantite', e.target.value === '' ? 0 : Number(e.target.value))}
-          className="h-8 w-20 text-center text-sm"
-        />
+        <span className="text-sm text-gray-800">{ligne.label}</span>
+        {ligne.stock_actuel === 0 && (
+          <p className="mt-0.5">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">
+              Rupture de stock
+            </span>
+          </p>
+        )}
+        {ligne.stock_actuel > 0 && ligne.quantite >= ligne.stock_actuel && (
+          <p className="mt-0.5">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">
+              Stock faible
+            </span>
+          </p>
+        )}
+      </td>
+      <td className="py-3 px-3">
+        <div>
+          <Input
+            type="number"
+            min={1}
+            max={ligne.stock_actuel}
+            value={ligne.quantite === 0 ? '' : ligne.quantite}
+            onChange={e => {
+              const val = e.target.value === '' ? 0 : Number(e.target.value)
+              onChange(index, 'quantite', Math.min(val, ligne.stock_actuel))
+            }}
+            className={`h-8 w-20 text-center text-sm ${ligne.quantite >= ligne.stock_actuel ? 'border-amber-400 focus-visible:ring-amber-300' : ''}`}
+          />
+          {ligne.quantite >= ligne.stock_actuel && ligne.stock_actuel > 0 && (
+            <p className="text-[10px] text-amber-600 mt-0.5 w-20 text-center">
+              Max {ligne.stock_actuel}
+            </p>
+          )}
+        </div>
       </td>
       <td className="py-3 px-3">
         <Input

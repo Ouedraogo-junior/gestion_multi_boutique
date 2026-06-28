@@ -57,6 +57,8 @@ export default function NouvelApprovisionnementPage() {
   const [nouveauFournisseur, setNouveauFournisseur] = useState(false)
   const [newFourn, setNewFourn] = useState({ nom: '', telephone: '', provenance: '', adresse: '' })
 
+  const [montantTotalFacture, setMontantTotalFacture] = useState<number | null>(null)
+
   // Produits
   const [produitOptions,  setProduitOptions]  = useState<ProduitOption[]>([])
   const [produitSearch,   setProduitSearch]   = useState('')
@@ -190,6 +192,7 @@ export default function NouvelApprovisionnementPage() {
       const res = await createApprovisionnement(id, {
         fournisseur_id: fId!,
         note,
+        montant_total_facture: montantTotalFacture ?? undefined,
         lignes: lignes.map(l => ({
           variante_id: l.variante_id,
           quantite:    l.quantite,
@@ -411,6 +414,33 @@ export default function NouvelApprovisionnementPage() {
         )}
       </div>
 
+      {/* Montant facturé */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+        <h2 className="text-base font-medium text-gray-800">Paiement fournisseur</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label>Montant total facturé (optionnel)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={montantTotalFacture ?? ''}
+              onChange={e => setMontantTotalFacture(e.target.value ? Number(e.target.value) : null)}
+              placeholder="Laisser vide = calculé automatiquement"
+            />
+            {totalGeneral > 0 && (
+              <p className="text-xs text-gray-400">
+                Montant calculé : <strong>{formatMontant(totalGeneral)}</strong>
+                {montantTotalFacture !== null && montantTotalFacture !== totalGeneral && (
+                  <span className="ml-2 text-amber-500">
+                    (écart : {formatMontant(Math.abs(montantTotalFacture - totalGeneral))})
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Note */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-2">
         <Label>Note (optionnel)</Label>
@@ -453,13 +483,37 @@ export default function NouvelApprovisionnementPage() {
             <div className="space-y-2 mt-2">
               <p className="text-sm text-gray-500 text-center">
                 Réf : <strong>{approFinal.reference}</strong> — {formatMontant(
-                  approFinal.lignes.reduce((s, l) => s + Number(l.prix_achat) * l.quantite, 0)
+                  Number(approFinal.montant_total_facture ?? approFinal.montant_calcule)
                 )}
               </p>
-              <Button onClick={() => setPretAPrint(true)} className="w-full bg-[#1A7A4A] hover:bg-[#145C38] text-white">
+
+              {/* Statut paiement */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-center">
+                <span className="text-amber-700 font-medium">Non payé</span>
+                <span className="text-amber-600 ml-2">
+                  — Solde : {formatMontant(Number(approFinal.montant_total_facture ?? approFinal.montant_calcule))}
+                </span>
+              </div>
+
+              <Button
+                onClick={() => setPretAPrint(true)}
+                className="w-full bg-[#1A7A4A] hover:bg-[#145C38] text-white"
+              >
                 <Printer size={18} className="mr-2" />
                 Imprimer le reçu
               </Button>
+
+              <Button
+                variant="outline"
+                className="w-full border-[#1A7A4A] text-[#1A7A4A] hover:bg-[#D4F0E2]"
+                onClick={() => {
+                  setRecuDialog(false)
+                  navigate(`/boutiques/${id}/approvisionnements/${approFinal.id}/paiements`)
+                }}
+              >
+                Enregistrer un versement
+              </Button>
+
               <Button
                 variant="outline"
                 className="w-full border-gray-200"

@@ -71,6 +71,7 @@ export default function NouvelleVentePage() {
         quantite:       d.quantite,
         remise_montant: d.remise_montant,
         stock_actuel:   d.variante?.stock_actuel ?? 0,
+        seuil_alerte:   d.variante?.seuil_alerte ?? 0,
       })) ?? [])
       if (v.client_id) {
         setPaiement(prev => ({ ...prev, client_id: String(v.client_id) }))
@@ -99,7 +100,7 @@ export default function NouvelleVentePage() {
       ))
       return
     }
-    setLignes(prev => [...prev, {
+    setLignes(prev => [{
       variante_id:    item.variante.id,
       produit_id:     item.produit.id,
       label:          item.label,
@@ -108,7 +109,8 @@ export default function NouvelleVentePage() {
       quantite:       1,
       remise_montant: 0,
       stock_actuel:   item.variante.stock_actuel,
-    }])
+      seuil_alerte:   item.variante.seuil_alerte,
+    }, ...prev])
   }
 
   const handleChangeLigne = (index: number, champ: keyof Ligne, valeur: number) => {
@@ -184,6 +186,7 @@ export default function NouvelleVentePage() {
         // 2. Valider le brouillon via l'endpoint dédié
         const res = await validerVente(id, brouillonId, buildPaiements())
         vente = res.data
+        // console.log('vente brute:', JSON.stringify(vente, null, 2))
       } else if (brouillonId && !valider) {
         // Sauvegarder brouillon existant
         const res = await updateVente(id, brouillonId, {
@@ -201,6 +204,7 @@ export default function NouvelleVentePage() {
           valider,
         })
         vente = res.data
+        // console.log('vente brute:', JSON.stringify(vente, null, 2))
       }
 
       if (valider) {

@@ -53,6 +53,7 @@ import ApprovisionnementsPage      from '@/pages/approvisionnements/Approvisionn
 import ReceptionMarchandisesPage from '@/pages/approvisionnements/ReceptionMarchandisesPage'
 import NouvelApprovisionnementPage from '@/pages/approvisionnements/NouvelApprovisionnementPage'
 import ApprovisionnementDetailPage from '@/pages/approvisionnements/ApprovisionnementDetailPage'
+import DettesFournisseursPage from '@/pages/approvisionnements/DettesFournisseursPage'
 
 
 
@@ -222,6 +223,11 @@ export default function App() {
               <Route path="/boutiques/:boutiqueId/approvisionnements/:approId" element={
                 <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
                   <ApprovisionnementDetailPage /> 
+                </ProtectedRoute>
+              } />
+              <Route path="/boutiques/:boutiqueId/dettes-fournisseurs" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <DettesFournisseursPage />
                 </ProtectedRoute>
               } />
 

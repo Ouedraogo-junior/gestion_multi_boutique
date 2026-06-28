@@ -159,6 +159,41 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
         <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
           Entrée arrêtée à la somme de : <strong>{fmt(totalGeneral)} FCFA</strong>
         </div>
+
+        {/* Statut paiement */}
+        <div style={{
+          border: '1px solid #ddd',
+          borderRadius: '2mm',
+          padding: '2mm 3mm',
+          marginBottom: '3mm',
+          fontSize: '10px',
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '9px', color: '#555', textTransform: 'uppercase' }}>
+            Paiement fournisseur
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2mm' }}>
+            <div>
+              <div style={{ color: '#555', fontSize: '9px' }}>Montant dû</div>
+              <div style={{ fontWeight: 'bold' }}>
+                {fmt(Number(appro.montant_total_facture ?? appro.montant_calcule))} FCFA
+              </div>
+            </div>
+            <div>
+              <div style={{ color: '#555', fontSize: '9px' }}>Montant payé</div>
+              <div style={{ fontWeight: 'bold' }}>0 FCFA</div>
+            </div>
+            <div>
+              <div style={{ color: '#555', fontSize: '9px' }}>Statut</div>
+              <div style={{
+                fontWeight: 'bold',
+                color: '#D97706',   // amber = non soldé à la création
+              }}>
+                NON PAYÉ
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6mm', fontStyle: 'italic' }}>
           <span>Le Responsable</span>
           <span>Le Fournisseur</span>

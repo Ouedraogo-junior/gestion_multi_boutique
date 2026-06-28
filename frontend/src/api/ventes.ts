@@ -32,6 +32,7 @@ export interface VenteDetail {
   variante?: {
     attributs: Record<string, string> | null
     stock_actuel: number
+    seuil_alerte: number
     prix_vente: number
     produit?: {
       id: number
@@ -61,7 +62,7 @@ export interface Vente {
     montant: number
     operateur_id: number | null
   }[]
-  client?: { nom: string; prenom: string | null }   // prenom nullable
+  client?: { nom: string; prenom: string | null; telephone?: string | null }
   vendeur?: { nom: string; prenom: string; pseudo: string }
 }
 

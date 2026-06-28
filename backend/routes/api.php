@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\FournisseurController;
 use App\Http\Controllers\Api\ApprovisionnementController;
+use App\Http\Controllers\Api\PaiementFournisseurController;
 
 // Auth publique
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -46,12 +47,6 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
 
         // Boutique
         Route::put('/boutiques/{id}',                   [BoutiqueController::class, 'update']);
-
-        // Référentiels
-        Route::get('/boutiques/{boutique_id}/referentiels',       [ReferentielController::class, 'index']);
-        Route::post('/boutiques/{boutique_id}/referentiels',      [ReferentielController::class, 'store']);
-        Route::put('/boutiques/{boutique_id}/referentiels/{id}',  [ReferentielController::class, 'update']);
-        Route::delete('/boutiques/{boutique_id}/referentiels/{id}', [ReferentielController::class, 'destroy']);
 
         // Paramètres
         Route::get('/boutiques/{boutique_id}/parametres',         [ParametreController::class, 'index']);
@@ -98,6 +93,12 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
 
         Route::get('/boutiques/{boutique_id}/clients/{id}/paiements', [ClientController::class, 'paiements']);
 
+        // Référentiels
+        Route::get('/boutiques/{boutique_id}/referentiels',       [ReferentielController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/referentiels',      [ReferentielController::class, 'store']);
+        Route::put('/boutiques/{boutique_id}/referentiels/{id}',  [ReferentielController::class, 'update']);
+        Route::delete('/boutiques/{boutique_id}/referentiels/{id}', [ReferentielController::class, 'destroy']);
+
         // Ventes
         Route::get('/boutiques/{boutique_id}/ventes',              [VenteController::class, 'index']);
         Route::post('/boutiques/{boutique_id}/ventes',             [VenteController::class, 'store']);
@@ -130,6 +131,10 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::get('/boutiques/{boutique_id}/approvisionnements', [ApprovisionnementController::class, 'index']);
         Route::post('/boutiques/{boutique_id}/approvisionnements', [ApprovisionnementController::class, 'store']);
         Route::get('/boutiques/{boutique_id}/approvisionnements/{id}', [ApprovisionnementController::class, 'show']);
+
+        // Paiements fournisseurs
+        Route::get('/boutiques/{boutique_id}/approvisionnements/{id}/paiements',  [PaiementFournisseurController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/approvisionnements/{id}/paiements', [PaiementFournisseurController::class, 'store']);
 
         // Utilisateurs
         Route::get('/boutiques/{boutique_id}/users',                    [UserController::class, 'index']);

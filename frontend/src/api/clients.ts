@@ -40,10 +40,12 @@ export interface PaiementPayload {
 
 export interface PaiementHistorique {
   id?: number
+  vente_id?: number
   montant: number
   mode: 'especes' | 'mobile_money'
   date: string
-  vente: {
+  note?: string | null
+  vente?: {
     numero_facture: string
     total_net: number
     solde_restant: number

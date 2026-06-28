@@ -10,6 +10,10 @@ class Fournisseur extends Model
         'boutique_id', 'nom', 'telephone', 'adresse', 'provenance', 'notes', 'actif',
     ];
 
+    protected $casts = [
+        'actif' => 'boolean',
+    ];
+
     public function boutique()
     {
         return $this->belongsTo(Boutique::class);
