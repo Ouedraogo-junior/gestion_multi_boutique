@@ -52,7 +52,7 @@ export default function Login() {
 
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            {/* <img
+            <img
               src="/logo_3.png"
               alt="Hamed Telecom"
               className="w-32 h-32 object-contain"
@@ -62,7 +62,7 @@ export default function Login() {
                 const placeholder = target.nextElementSibling as HTMLElement
                 if (placeholder) placeholder.style.display = 'flex'
               }}
-            /> */}
+            />
             <div
               className="w-32 h-32 rounded-2xl bg-[#1A7A4A] items-center justify-center hidden"
             >
@@ -71,8 +71,8 @@ export default function Login() {
               </span>
             </div>
           </div>
-          <h1 className="text-3xl text-[#1C1C1C] mb-2">Système de gestion</h1>
-          <p className="text-[#6B7280]">Gestion de magasin électronique</p>
+          <h1 className="text-3xl text-[#1C1C1C] mb-2">Hamed Telecom</h1>
+          <p className="text-[#6B7280]">Gestion de magasin</p>
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm">

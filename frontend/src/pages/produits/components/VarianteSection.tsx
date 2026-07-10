@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 
 export interface VarianteForm {
+  id?: number 
   attributs: Record<string, string>
   prix_achat:    string 
   prix_vente: string

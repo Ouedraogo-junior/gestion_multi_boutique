@@ -18,7 +18,7 @@ import { formatMontant } from '@/utils/format'
 import { toast } from 'sonner'
 
 const paiementVide: PaiementState = {
-  especes: '', mobile_money: '', operateur_id: '', credit: '', client_id: ''
+  especes: '', mobile_money: '', operateur_id: '', credit: '', client_id: '', avance: ''
 }
 
 export default function NouvelleVentePage() {
@@ -30,6 +30,7 @@ export default function NouvelleVentePage() {
 
   const [lignes, setLignes]           = useState<Ligne[]>([])
   const [paiement, setPaiement]       = useState<PaiementState>(paiementVide)
+  const [soldeAvance, setSoldeAvance] = useState<number | null>(null)
   const [loading, setLoading]         = useState(false)
   const [venteFinale, setVenteFinale] = useState<Vente | null>(null)
   const [recuDialog, setRecuDialog]   = useState(false)
@@ -126,12 +127,16 @@ export default function NouvelleVentePage() {
 
     const especesRecu     = Number(paiement.especes)      || 0
     const mobileMoneyRecu = Number(paiement.mobile_money) || 0
+    const avanceRecu      = Number(paiement.avance)       || 0
 
     const especesAffecte = Math.min(especesRecu, resteAAffecter)
     resteAAffecter -= especesAffecte
 
     const mobileMoneyAffecte = Math.min(mobileMoneyRecu, resteAAffecter)
     resteAAffecter -= mobileMoneyAffecte
+
+    const avanceAffecte = Math.min(avanceRecu, resteAAffecter)
+    resteAAffecter -= avanceAffecte
 
     const credit = resteAAffecter
 
@@ -142,6 +147,7 @@ export default function NouvelleVentePage() {
       montant: mobileMoneyAffecte,
       operateur_id: paiement.operateur_id ? Number(paiement.operateur_id) : null,
     })
+    if (avanceAffecte > 0) result.push({ mode: 'avance_client' as const, montant: avanceAffecte })
     if (credit > 0) result.push({ mode: 'credit' as const, montant: credit })
 
     return result
@@ -151,7 +157,7 @@ export default function NouvelleVentePage() {
     if (lignes.length === 0) { toast.error('Panier vide'); return }
 
     if (valider) {
-      const credit = totalNet - (Number(paiement.especes) || 0) - (Number(paiement.mobile_money) || 0)
+      const credit = totalNet - (Number(paiement.especes) || 0) - (Number(paiement.mobile_money) || 0) - (Number(paiement.avance) || 0)
       if (credit > 0 && (!paiement.client_id || paiement.client_id === '0')) {
         toast.error('Un client est requis pour une vente à crédit')
         return
@@ -159,6 +165,18 @@ export default function NouvelleVentePage() {
       if ((Number(paiement.mobile_money) || 0) > 0 && !paiement.operateur_id) {
         toast.error('Veuillez sélectionner un opérateur pour le mobile money')
         return
+      }
+
+      const avanceRecu = Number(paiement.avance) || 0
+      if (avanceRecu > 0) {
+        if (!paiement.client_id || paiement.client_id === '0') {
+          toast.error('Un client est requis pour payer avec une avance')
+          return
+        }
+        if (soldeAvance !== null && avanceRecu > soldeAvance) {
+          toast.error(`Solde d'avance insuffisant (disponible : ${formatMontant(soldeAvance)})`)
+          return
+        }
       }
     }
 
@@ -290,7 +308,13 @@ export default function NouvelleVentePage() {
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-base font-medium text-gray-800 mb-4">Paiement</h3>
-            <PaiementSection boutiqueId={id} totalNet={totalNet} paiement={paiement} onChange={setPaiement} />
+            <PaiementSection
+              boutiqueId={id}
+              totalNet={totalNet}
+              paiement={paiement}
+              onChange={setPaiement}
+              onSoldeAvanceChange={setSoldeAvance}
+            />
           </div>
           <div className="space-y-2">
             <Button onClick={() => handleSave(true)} disabled={loading || lignes.length === 0} className="w-full bg-[#1A7A4A] hover:bg-[#145C38] text-white h-11">

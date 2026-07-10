@@ -52,6 +52,45 @@ export interface PaiementHistorique {
   }
 }
 
+// --- Avances clients ---
+
+export interface AvanceEntry {
+  id: number
+  boutique_id: number
+  client_id: number
+  type: 'depot' | 'utilisation'
+  montant: number
+  vente_id?: number | null
+  mode_depot?: 'especes' | 'mobile_money' | null
+  operateur_id?: number | null
+  user_id: number
+  note?: string | null
+  created_at: string
+  vente?: {
+    id: number
+    numero_facture: string
+    total_net: number
+  } | null
+}
+
+export interface AvancesResponse {
+  client: Client
+  solde_avance: number
+  historique: AvanceEntry[]
+}
+
+export interface AvanceDepotPayload {
+  montant: number
+  mode_depot: 'especes' | 'mobile_money'
+  operateur_id?: number | null
+  note?: string
+}
+
+export interface AvanceDepotResponse {
+  avance: AvanceEntry
+  solde_avance_apres: number
+}
+
 export const getClients     = (boutiqueId: number, params?: Record<string, unknown>) =>
   api.get(`/boutiques/${boutiqueId}/clients`, { params })
 
@@ -65,10 +104,26 @@ export const updateClient   = (boutiqueId: number, id: number, data: Partial<Cli
   api.put(`/boutiques/${boutiqueId}/clients/${id}`, data)
 
 export const getDettes      = (boutiqueId: number, id: number) =>
-  api.get(`/boutiques/${boutiqueId}/clients/${id}/dettes`)
+  api.get<DettesResponse>(`/boutiques/${boutiqueId}/clients/${id}/dettes`)
 
 export const storePaiement  = (boutiqueId: number, id: number, data: PaiementPayload) =>
   api.post(`/boutiques/${boutiqueId}/clients/${id}/paiements`, data)
 
 export const getPaiements = (boutiqueId: number, clientId: number) =>
   api.get<PaiementHistorique[]>(`/boutiques/${boutiqueId}/clients/${clientId}/paiements`)
+
+export const getClientStats = (boutiqueId: number) =>
+  api.get(`/boutiques/${boutiqueId}/clients/stats`)
+
+export const getDerniersPaiements = (boutiqueId: number, clientIds: number[]) =>
+  api.get(`/boutiques/${boutiqueId}/clients/derniers-paiements`, {
+     params: { client_ids: clientIds },
+   })
+
+// --- Avances ---
+
+export const getAvances    = (boutiqueId: number, id: number) =>
+  api.get<AvancesResponse>(`/boutiques/${boutiqueId}/clients/${id}/avances`)
+
+export const storeAvance   = (boutiqueId: number, id: number, data: AvanceDepotPayload) =>
+  api.post<AvanceDepotResponse>(`/boutiques/${boutiqueId}/clients/${id}/avances`, data)

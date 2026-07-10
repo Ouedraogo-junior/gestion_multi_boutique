@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CreditCard, Printer, User, Phone, MapPin,
-  FileText, ChevronRight, Loader2
+  FileText, ChevronRight, Loader2, Wallet
 } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
-import { getClient, getDettes, getPaiements } from '@/api/clients'
-import type { Client, Dette, PaiementHistorique } from '@/api/clients'
+import { getClient, getDettes, getPaiements, getAvances } from '@/api/clients'
+import type { Client, Dette, PaiementHistorique, AvanceEntry } from '@/api/clients'
 import { formatMontant, formatDate } from '@/utils/format'
 import { toast } from 'sonner'
 import { useBoutique } from '@/hooks/useBoutique'
 import PaiementDialog from './components/PaiementDialog'
+import AvanceDialog from './components/AvanceDialog'
 import RecuPaiementImprimable from './components/RecuPaiementImprimable'
 
 export default function ClientDetailPage() {
@@ -26,6 +27,11 @@ export default function ClientDetailPage() {
   const [paiements, setPaiements] = useState<PaiementHistorique[]>([])
   const [totalDette, setTotalDette] = useState(0)
   const [loading,   setLoading]   = useState(true)
+
+  // Avances
+  const [soldeAvance, setSoldeAvance]           = useState(0)
+  const [avances, setAvances]                   = useState<AvanceEntry[]>([])
+  const [avanceDialogOpen, setAvanceDialogOpen] = useState(false)
 
   const [paiementOpen, setPaiementOpen] = useState(false)
   const [dernierPaiement, setDernierPaiement] = useState<{
@@ -52,10 +58,11 @@ export default function ClientDetailPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [resClient, resDettes, resPaiements] = await Promise.all([
+      const [resClient, resDettes, resPaiements, resAvances] = await Promise.all([
         getClient(boutiqueIdNum, clientIdNum),
         getDettes(boutiqueIdNum, clientIdNum),
         getPaiements(boutiqueIdNum, clientIdNum),
+        getAvances(boutiqueIdNum, clientIdNum),
       ])
       setClient(resClient.data)
       setDettes(resDettes.data.dettes ?? [])
@@ -64,6 +71,9 @@ export default function ClientDetailPage() {
       setPaiements(liste)
       const avecVente = liste.find(p => p.vente !== undefined)
       if (avecVente?.vente) setDernierPaiement(avecVente as typeof dernierPaiement extends null ? never : NonNullable<typeof dernierPaiement>)
+
+      setSoldeAvance(resAvances.data.solde_avance ?? 0)
+      setAvances(resAvances.data.historique ?? [])
     } catch {
       toast.error('Erreur lors du chargement')
     } finally {
@@ -142,6 +152,15 @@ export default function ClientDetailPage() {
               Dernier reçu
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAvanceDialogOpen(true)}
+            className="border-gray-200 text-gray-600 hover:text-[#1A7A4A]"
+          >
+            <Wallet size={15} className="mr-1.5" />
+            Ajouter une avance
+          </Button>
           {totalDette > 0 && (
             <Button
               size="sm"
@@ -156,7 +175,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total achats</p>
           <p className="text-2xl text-[#1C1C1C]">{formatMontant(Number(client.total_achat ?? 0))}</p>
@@ -169,6 +188,12 @@ export default function ClientDetailPage() {
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Créances restantes</p>
           <p className={`text-2xl ${totalDette > 0 ? 'text-[#E8314A]' : 'text-[#1A7A4A]'}`}>
             {formatMontant(totalDette)}
+          </p>
+        </div>
+        <div className={`rounded-xl border p-5 ${soldeAvance > 0 ? 'bg-[#D4F0E2] border-[#1A7A4A]/20' : 'bg-white border-gray-200'}`}>
+          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Solde d'avance</p>
+          <p className={`text-2xl ${soldeAvance > 0 ? 'text-[#145C38]' : 'text-gray-300'}`}>
+            {formatMontant(soldeAvance)}
           </p>
         </div>
       </div>
@@ -229,6 +254,78 @@ export default function ClientDetailPage() {
                       >
                         <ChevronRight size={16} />
                       </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Historique des avances */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-[#1C1C1C]">Avances (dépôts et utilisations)</h2>
+          <span className="text-xs text-gray-400">
+            Solde disponible : <span className="text-[#145C38] font-medium">{formatMontant(soldeAvance)}</span>
+          </span>
+        </div>
+        {avances.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">
+            Aucune avance enregistrée
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Date</th>
+                  <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Type</th>
+                  <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Mode / Facture liée</th>
+                  <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Montant</th>
+                  <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {avances.map(a => (
+                  <tr key={a.id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                    <td className="py-3 px-5 text-sm text-gray-600">
+                      {a.created_at ? formatDate(a.created_at) : '—'}
+                    </td>
+                    <td className="py-3 px-5">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                        a.type === 'depot'
+                          ? 'bg-[#D4F0E2] text-[#145C38]'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {a.type === 'depot' ? 'Dépôt' : 'Utilisation'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-5">
+                      {a.type === 'depot' ? (
+                        <span className="text-sm text-gray-600">
+                          {a.mode_depot === 'especes' ? 'Espèces' : 'Mobile Money'}
+                        </span>
+                      ) : a.vente?.numero_facture ? (
+                        <Link
+                          to={`/boutiques/${boutiqueId}/ventes/${a.vente_id}`}
+                          className="text-sm text-[#1A7A4A] hover:underline flex items-center gap-1"
+                        >
+                          <FileText size={13} />
+                          {a.vente.numero_facture}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-300 text-sm">—</span>
+                      )}
+                    </td>
+                    <td className={`py-3 px-5 text-sm text-right font-medium ${
+                      a.type === 'depot' ? 'text-[#1A7A4A]' : 'text-gray-500'
+                    }`}>
+                      {a.type === 'depot' ? '+' : '−'}{formatMontant(a.montant)}
+                    </td>
+                    <td className="py-3 px-5 text-sm text-gray-400 italic">
+                      {a.note ?? '—'}
                     </td>
                   </tr>
                 ))}
@@ -305,11 +402,22 @@ export default function ClientDetailPage() {
       <PaiementDialog
         boutiqueId={boutiqueIdNum}
         client={paiementOpen ? client : null}
-        onClose={() => setPaiementOpen(false)}
-        onPaid={() => load()}
+        onClose={() => {
+          setPaiementOpen(false)
+          load()  // ← recharger après fermeture complète
+        }}
+        onPaid={() => {
+          // Ne pas appeler load() ici — laisser le dialog gérer l'impression d'abord
+        }}
         onPrintReady={({ paiement }) => {
           setDernierPaiement(paiement)
         }}
+      />
+
+      <AvanceDialog
+        boutiqueId={boutiqueIdNum}
+        client={avanceDialogOpen ? client : null}
+        onClose={() => { setAvanceDialogOpen(false); load() }}
       />
 
       {/* Zone impression cachée */}

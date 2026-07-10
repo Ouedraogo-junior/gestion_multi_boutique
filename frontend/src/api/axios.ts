@@ -3,8 +3,8 @@ import axios from 'axios'
 import { toast } from 'sonner'
 
 const api = axios.create({
-  //baseURL: 'http://localhost:8001/api',
-  baseURL: 'https://backend.millaicecream.com/api',
+  baseURL: 'http://localhost:8001/api',
+  //baseURL: 'https://api-hamedtelecom.fasodev.com/api',
   headers: { 'Content-Type': 'application/json' },
 })
 

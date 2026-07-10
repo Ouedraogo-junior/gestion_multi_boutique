@@ -24,7 +24,7 @@ class AuthController extends Controller
             // Audit échec connexion
             AuditLog::create([
                 'boutique_id' => null,
-                'user_id'     => $user?->id ?? 0,
+                'user_id' => $user?->id,
                 'user_pseudo' => $request->pseudo,
                 'user_nom'    => $user ? $user->prenom . ' ' . $user->nom : 'inconnu',
                 'action'      => 'echec_connexion',

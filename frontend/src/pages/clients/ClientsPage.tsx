@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { useParams,  useNavigate } from 'react-router-dom'
-import { Plus, Search, Pencil, CreditCard, Printer, Eye } from 'lucide-react'
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Plus, Search, Pencil, CreditCard, Printer, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getClients, getPaiements } from '@/api/clients'
+import { getClients, getDerniersPaiements, getClientStats } from '@/api/clients'
 import type { Client, PaiementHistorique } from '@/api/clients'
 import { formatMontant } from '@/utils/format'
 import { toast } from 'sonner'
@@ -23,17 +23,21 @@ export default function ClientsPage() {
   const [total, setTotal]                   = useState(0)
   const [loading, setLoading]               = useState(true)
   const [search, setSearch]                 = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage]                     = useState(1)
+  const [lastPage, setLastPage]             = useState(1)
   const [formOpen, setFormOpen]             = useState(false)
   const [clientEdit, setClientEdit]         = useState<Client | null>(null)
   const [clientPaiement, setClientPaiement] = useState<Client | null>(null)
+  const [filters, setFilters]               = useState<ClientFilterValues>(defaultFilters)
 
-  const [filters, setFilters] = useState<ClientFilterValues>(defaultFilters)
+  // Stats globales (indépendantes de la pagination)
+  const [stats, setStats] = useState({ total_clients: 0, avec_dette: 0, total_dettes: 0, recouvrement_jour: 0 })
 
   const navigate = useNavigate()
 
-  // Historique paiements : Map clientId → dernier paiement
   const [historiquesPaiements, setHistoriquesPaiements] =
-    useState<Record<number, PaiementHistorique>>({})
+    useState<Record<number, PaiementHistorique[]>>({})
 
   const [recuClient, setRecuClient] = useState<Client | null>(null)
   const recuRef = useRef<HTMLDivElement>(null)
@@ -49,32 +53,55 @@ export default function ClientsPage() {
     setTimeout(() => handlePrint(), 100)
   }
 
-  const load = async (q = '') => {
+const loadStats = async () => {
+    try {
+      const res = await getClientStats(id)
+      setStats(res.data)
+    } catch {
+      // silencieux
+    }
+  }
+
+  
+  const loadDerniersPaiements = async (clientIds: number[]) => {
+    if (clientIds.length === 0) { setHistoriquesPaiements({}); return }
+    try {
+      const resPaiements = await getDerniersPaiements(id, clientIds)
+      const map: Record<number, PaiementHistorique[]> = {}
+      Object.entries(resPaiements.data).forEach(([clientId, p]: [string, unknown]) => {
+        const pai = p as Record<string, unknown>
+        map[Number(clientId)] = [{
+          id:       pai.id       as number,
+          montant:  pai.montant  as number,
+          mode:     pai.mode     as 'especes' | 'mobile_money',
+          date:     pai.date     as string,
+          vente_id: pai.vente_id as number,
+          vente: {
+            numero_facture: pai.numero_facture as string,
+            total_net:      pai.total_net      as number,
+            solde_restant:  0,
+          },
+        }]
+      })
+      setHistoriquesPaiements(map)
+    } catch {
+      // silencieux
+    }
+  }
+
+  const loadClients = async (q = '') => {
     setLoading(true)
     try {
-      const params: Record<string, unknown> = { per_page: 50 }
+      const params: Record<string, unknown> = { per_page: 25, page }
       if (q) params.search = q
+
       const res  = await getClients(id, params)
       const data = res.data?.data ?? res.data
       const liste: Client[] = Array.isArray(data) ? data : []
       setClients(liste)
       setTotal(res.data?.total ?? liste.length)
-
-      // Charger le dernier paiement pour chaque client qui a des paiements
-      const entries = await Promise.all(
-        liste.map(async c => {
-          try {
-            const r = await getPaiements(id, c.id)
-            const paiements: PaiementHistorique[] = r.data
-            if (paiements.length > 0) return [c.id, paiements[0]] as const
-          } catch { /* client sans paiement */ }
-          return null
-        })
-      )
-      const map: Record<number, PaiementHistorique> = {}
-      entries.forEach(e => { if (e) map[e[0]] = e[1] })
-      setHistoriquesPaiements(map)
-
+      setLastPage(res.data?.last_page ?? 1)
+      loadDerniersPaiements(liste.map(c => c.id))
     } catch {
       toast.error('Erreur lors du chargement')
     } finally {
@@ -82,49 +109,50 @@ export default function ClientsPage() {
     }
   }
 
-  useEffect(() => { load() }, [id])
+  // Chargé une seule fois par boutique
   useEffect(() => {
-    const t = setTimeout(() => load(search), 300)
+    loadStats()
+  }, [id])
+
+  // Debounce de la recherche : on repart à la page 1 à chaque nouvelle recherche
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
     return () => clearTimeout(t)
   }, [search])
 
-  const totalDettes = clients.reduce((s, c) => s + Number(c.total_dette ?? 0), 0)
-  const avecDette   = clients.filter(c => Number(c.total_dette ?? 0) > 0).length
+  // Recharge la liste des clients à chaque changement de page ou de recherche
+  useEffect(() => {
+    loadClients(debouncedSearch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, page, debouncedSearch])
 
-  const aujourdhui = new Date().toISOString().slice(0, 10)
-  const recouvrementDuJour = Object.values(historiquesPaiements)
-    .filter(p => p.date?.slice(0, 10) === aujourdhui)
-    .reduce((s, p) => s + Number(p.montant ?? 0), 0)
 
-  const clientsFiltres = clients.filter(c => {
-    const dette = Number(c.total_dette ?? 0)
+  const clientsFiltres = useMemo(() => clients.filter(c => {
+     const dette = Number(c.total_dette ?? 0)
+     if (filters.statut === 'avec_dette' && dette <= 0) return false
+     if (filters.statut === 'en_regle'   && dette >  0) return false
 
-    // Filtre statut
-    if (filters.statut === 'avec_dette' && dette <= 0) return false
-    if (filters.statut === 'en_regle'   && dette >  0) return false
-
-    // Filtre date dernier paiement
-    if (filters.dateDebut || filters.dateFin) {
-        const dernierPai = historiquesPaiements[c.id]
-        if (!dernierPai) return false
-
-        const datePai = new Date(dernierPai.date)
-        datePai.setHours(0, 0, 0, 0)
-
-        if (filters.dateDebut) {
-        const debut = new Date(filters.dateDebut)
-        debut.setHours(0, 0, 0, 0)
-        if (datePai < debut) return false
-        }
-        if (filters.dateFin) {
-        const fin = new Date(filters.dateFin)
-        fin.setHours(23, 59, 59, 999)
-        if (datePai > fin) return false
-        }
-    }
-
-    return true
-})
+     if (filters.dateDebut || filters.dateFin) {
+       const dernierPai = historiquesPaiements[c.id]?.[0]
+       if (!dernierPai) return false
+       const datePai = new Date(dernierPai.date)
+       datePai.setHours(0, 0, 0, 0)
+       if (filters.dateDebut) {
+         const debut = new Date(filters.dateDebut)
+         debut.setHours(0, 0, 0, 0)
+         if (datePai < debut) return false
+       }
+       if (filters.dateFin) {
+         const fin = new Date(filters.dateFin)
+         fin.setHours(23, 59, 59, 999)
+         if (datePai > fin) return false
+       }
+     }
+     return true
+   }), [clients, filters, historiquesPaiements])
 
   const handleSaved = (client: Client) => {
     setClients(prev => {
@@ -133,6 +161,7 @@ export default function ClientsPage() {
       return [client, ...prev]
     })
     setTotal(prev => clientEdit ? prev : prev + 1)
+    loadStats() // ← rafraîchir les stats après création
   }
 
   return (
@@ -152,44 +181,44 @@ export default function ClientsPage() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — depuis l'endpoint dédié */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Total clients</p>
-          <p className="text-3xl text-[#1C1C1C]">{total}</p>
+          <p className="text-3xl text-[#1C1C1C]">{stats.total_clients}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Clients avec dettes</p>
-          <p className="text-3xl text-[#E8314A]">{avecDette}</p>
+          <p className="text-3xl text-[#E8314A]">{stats.avec_dette}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Créances totales</p>
-          <p className="text-3xl text-[#E8314A]">{formatMontant(totalDettes)}</p>
+          <p className="text-3xl text-[#E8314A]">{formatMontant(stats.total_dettes)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <p className="text-sm text-gray-500 mb-1">Recouvrement du jour</p>
-          <p className="text-3xl text-[#1A7A4A]">{formatMontant(recouvrementDuJour)}</p>
+          <p className="text-3xl text-[#1A7A4A]">{formatMontant(stats.recouvrement_jour)}</p>
         </div>
       </div>
 
-      {/* Recherche + Filtres */}
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="relative">
+      {/* Recherche */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Rechercher par nom, prénom ou téléphone..."
             className="pl-10 border-gray-200"
-            />
+          />
+        </div>
       </div>
-    </div>
 
-    <ClientFilters
-    values={filters}
-    onChange={setFilters}
-    onReset={() => setFilters(defaultFilters)}
-    />
+      <ClientFilters
+        values={filters}
+        onChange={setFilters}
+        onReset={() => setFilters(defaultFilters)}
+      />
 
       {/* Tableau */}
       <div className="bg-white rounded-xl border border-gray-200">
@@ -198,8 +227,9 @@ export default function ClientsPage() {
         ) : clients.length === 0 ? (
           <div className="text-center py-16 text-gray-400">Aucun client</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Client</th>
@@ -254,8 +284,6 @@ export default function ClientsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-
-                          {/* Bouton dédié vers le détail */}
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/boutiques/${boutiqueId}/clients/${c.id}`) }}
                             className="text-gray-400 hover:text-[#1A7A4A] transition-colors"
@@ -263,7 +291,6 @@ export default function ClientsPage() {
                           >
                             <Eye size={16} />
                           </button>
-
                           <button
                             onClick={e => { e.stopPropagation(); setClientEdit(c); setFormOpen(true) }}
                             className="text-gray-400 hover:text-[#1A7A4A] transition-colors"
@@ -271,7 +298,6 @@ export default function ClientsPage() {
                           >
                             <Pencil size={16} />
                           </button>
-
                           {dette > 0 && (
                             <button
                               onClick={e => { e.stopPropagation(); setClientPaiement(c) }}
@@ -281,7 +307,6 @@ export default function ClientsPage() {
                               <CreditCard size={16} />
                             </button>
                           )}
-
                           {dernierPai && (
                             <button
                               onClick={e => { e.stopPropagation(); lancerImpression(c) }}
@@ -299,6 +324,36 @@ export default function ClientsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Page {page} sur {lastPage} — {total} client{total > 1 ? 's' : ''}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-200"
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={15} className="mr-1" />
+                  Précédent
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-200"
+                  disabled={page >= lastPage}
+                  onClick={() => setPage(p => Math.min(lastPage, p + 1))}
+                >
+                  Suivant
+                  <ChevronRight size={15} className="ml-1" />
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -314,10 +369,12 @@ export default function ClientsPage() {
         boutiqueId={id}
         client={clientPaiement}
         onClose={() => setClientPaiement(null)}
-        onPaid={() => load(search)}
+        onPaid={() => { loadClients(debouncedSearch); loadStats() }}
         onPrintReady={({ client, paiement }) => {
-          // Mettre à jour l'historique local immédiatement sans attendre reload
-          setHistoriquesPaiements(prev => ({ ...prev, [client.id]: paiement }))
+          setHistoriquesPaiements(prev => ({
+            ...prev,
+            [client.id]: [paiement, ...(prev[client.id] ?? [])],
+          }))
         }}
       />
 
@@ -325,7 +382,7 @@ export default function ClientsPage() {
       <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '148mm', zIndex: -1 }}>
         {(() => {
           if (!recuClient) return null
-          const pai = historiquesPaiements[recuClient.id]
+          const pai = historiquesPaiements[recuClient.id]?.[0]
           return pai?.vente && boutiqueActive ? (
             <RecuPaiementImprimable
               ref={recuRef}

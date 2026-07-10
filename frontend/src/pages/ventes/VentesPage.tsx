@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Eye } from 'lucide-react'
+import { Plus, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 //import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getVentes, annulerVente } from '@/api/ventes'
@@ -28,24 +28,27 @@ export default function VentesPage() {
   const [loading, setLoading]         = useState(true)
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [annulerTarget, setAnnulerTarget] = useState<Vente | null>(null)
+  const [page, setPage]               = useState(1)
+  const [lastPage, setLastPage]       = useState(1)
 
   const isAdmin = user?.role === ROLES.ADMIN_BOUTIQUE || user?.role === ROLES.SUPER_ADMIN
 
   const load = async () => {
     setLoading(true)
     try {
-      const params: Record<string, unknown> = { per_page: 50 }
+      const params: Record<string, unknown> = { per_page: 25, page }
       if (filtreStatut !== 'tous') params.statut = filtreStatut
       const res  = await getVentes(id, params)
       const data = res.data?.data ?? res.data
       setVentes(Array.isArray(data) ? data : [])
       setTotal(res.data?.total ?? (Array.isArray(data) ? data.length : 0))
+      setLastPage(res.data?.last_page ?? 1)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [id, filtreStatut])
+  useEffect(() => { load() }, [id, filtreStatut, page])
 
   const handleAnnuler = async () => {
     if (!annulerTarget) return
@@ -66,14 +69,17 @@ export default function VentesPage() {
     return credit
     }
 
+    const MODE_LABELS: Record<string, string> = {
+      especes:       'Espèces',
+      mobile_money:  'Mobile Money',
+      avance_client: 'Avance client',
+      credit:        'Crédit',
+    }
+
     const getModePaiement = (v: Vente) => {
-    const modes = v.paiements?.map(p => p.mode) ?? []
-    if (modes.includes('credit') && modes.length === 1) return 'Crédit'
-    if (modes.includes('credit')) return 'Mixte + Crédit'
-    if (modes.includes('mobile_money') && modes.includes('especes')) return 'Mixte'
-    if (modes.includes('mobile_money')) return 'Mobile Money'
-    if (modes.includes('especes')) return 'Espèces'
-    return '—'
+      const modes = Array.from(new Set(v.paiements?.map(p => p.mode) ?? []))
+      if (modes.length === 0) return '—'
+      return modes.map(m => MODE_LABELS[m] ?? m).join(' + ')
     }
 
     const getStatutPaiement = (v: Vente) => {
@@ -109,7 +115,7 @@ export default function VentesPage() {
             {['tous', 'brouillon', 'validee', 'annulee'].map(s => (
               <button
                 key={s}
-                onClick={() => setFiltreStatut(s)}
+                onClick={() => { setFiltreStatut(s); setPage(1) }}
                 className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                   filtreStatut === s
                     ? 'bg-[#1A7A4A] text-white'
@@ -130,8 +136,9 @@ export default function VentesPage() {
         ) : ventes.length === 0 ? (
           <div className="text-center py-16 text-gray-400">Aucune vente</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">N° Facture</th>
@@ -235,6 +242,36 @@ export default function VentesPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Page {page} sur {lastPage} — {total} vente{total > 1 ? 's' : ''}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-200"
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={15} className="mr-1" />
+                  Précédent
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-gray-200"
+                  disabled={page >= lastPage}
+                  onClick={() => setPage(p => Math.min(lastPage, p + 1))}
+                >
+                  Suivant
+                  <ChevronRight size={15} className="ml-1" />
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 

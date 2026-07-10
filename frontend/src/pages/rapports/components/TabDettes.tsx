@@ -1,4 +1,9 @@
+import { useState } from 'react'
+import { CreditCard, Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { formatMontant } from '@/utils/format'
+import PaiementDialog from '@/pages/clients/components/PaiementDialog'
+import type { Client } from '@/api/clients'
 
 type DetteClient = {
   client_id: number
@@ -20,6 +25,35 @@ export default function TabDettes({ data }: { data: DettesData }) {
   const clients = data.clients ?? []
   const total   = Number(data.total_dettes ?? 0)
 
+  const [search, setSearch]               = useState('')
+  const [clientPaiement, setClientPaiement] = useState<Client | null>(null)
+
+  const clientsFiltres = clients.filter(c => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (
+      c.nom?.toLowerCase().includes(q) ||
+      c.prenom?.toLowerCase().includes(q) ||
+      c.telephone?.toLowerCase().includes(q)
+    )
+  })
+
+  const ouvrirPaiement = (c: DetteClient) => {
+    setClientPaiement({
+      id:          c.client_id,
+      boutique_id: data.boutique_id,
+      nom:         c.nom,
+      prenom:      c.prenom    ?? null,
+      telephone:   c.telephone ?? null,
+      adresse:     null,
+      notes:       null,
+      total_achat: Number(c.total_credit),
+      total_paye:  Number(c.total_paye),
+      total_dette: Number(c.solde_dette),
+    })
+  }
+  
+
   return (
     <div className="space-y-6">
       <div className="bg-red-50 rounded-xl p-6">
@@ -28,6 +62,16 @@ export default function TabDettes({ data }: { data: DettesData }) {
         <p className="text-xs text-gray-400 mt-1">
           {clients.length} client{clients.length > 1 ? 's' : ''} avec dette
         </p>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher un client..."
+          className="pl-9 border-gray-200"
+        />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200">
@@ -43,25 +87,50 @@ export default function TabDettes({ data }: { data: DettesData }) {
                   <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Total crédit</th>
                   <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Total payé</th>
                   <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Solde dû</th>
+                  <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {clients.map(c => (
-                  <tr key={c.client_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
-                    <td className="py-3 px-4 text-sm font-medium text-[#1C1C1C]">
-                      {[c.prenom, c.nom].filter(Boolean).join(' ')}
+                {clientsFiltres.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-10 text-gray-400">
+                      Aucun client trouvé
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-500">{c.telephone ?? '—'}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{formatMontant(Number(c.total_credit))}</td>
-                    <td className="py-3 px-4 text-sm text-[#1A7A4A]">{formatMontant(Number(c.total_paye))}</td>
-                    <td className="py-3 px-4 text-sm font-semibold text-[#E8314A]">{formatMontant(Number(c.solde_dette))}</td>
                   </tr>
-                ))}
+                ) : (
+                  clientsFiltres.map(c => (
+                    <tr key={c.client_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                      <td className="py-3 px-4 text-sm font-medium text-[#1C1C1C]">
+                        {[c.prenom, c.nom].filter(Boolean).join(' ')}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-500">{c.telephone ?? '—'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-700">{formatMontant(Number(c.total_credit))}</td>
+                      <td className="py-3 px-4 text-sm text-[#1A7A4A]">{formatMontant(Number(c.total_paye))}</td>
+                      <td className="py-3 px-4 text-sm font-semibold text-[#E8314A]">{formatMontant(Number(c.solde_dette))}</td>
+                      <td className="py-3 px-4">
+                        <button
+                          onClick={() => ouvrirPaiement(c)}
+                          className="text-gray-400 hover:text-[#29ABE2] transition-colors"
+                          title="Enregistrer un paiement"
+                        >
+                          <CreditCard size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      <PaiementDialog
+        boutiqueId={data.boutique_id}
+        client={clientPaiement}
+        onClose={() => setClientPaiement(null)}
+        onPaid={() => setClientPaiement(null)}
+      />
     </div>
   )
 }

@@ -11,6 +11,8 @@ use App\Models\Variante;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\Client;
+use App\Models\AvanceClient;
 
 class VenteController extends Controller
 {
@@ -46,7 +48,7 @@ class VenteController extends Controller
             'lignes.*.prix_applique' => 'required|numeric|min:0',
             'lignes.*.remise_montant'=> 'nullable|numeric|min:0',
             'paiements'              => 'required_if:valider,true|array',
-            'paiements.*.mode'       => 'required|in:especes,mobile_money,credit',
+            'paiements.*.mode'       => 'required|in:especes,mobile_money,credit,avance_client',
             'paiements.*.montant'    => 'required|numeric|min:0',
             'paiements.*.operateur_id' => 'nullable|exists:referentiels,id',
         ]);
@@ -88,6 +90,27 @@ class VenteController extends Controller
                 if ($hasModeCredit && empty($data['client_id'])) {
                     DB::rollBack();
                     return response()->json(['message' => 'Un client est requis pour une vente à crédit'], 422);
+                }
+
+                // Avance client (somme de toutes les lignes en mode avance_client, pas seulement la première)
+                $montantAvance = collect($data['paiements'] ?? [])->where('mode', 'avance_client')->sum('montant');
+                if ($montantAvance > 0) {
+                    if (empty($data['client_id'])) {
+                        DB::rollBack();
+                        return response()->json(['message' => 'Un client est requis pour payer avec une avance'], 422);
+                    }
+
+                    $clientAvance = Client::where('boutique_id', $boutique_id)
+                                          ->lockForUpdate()
+                                          ->findOrFail($data['client_id']);
+
+                    if ($montantAvance > $clientAvance->solde_avance) {
+                        DB::rollBack();
+                        return response()->json([
+                            'message'      => 'Solde d\'avance insuffisant',
+                            'solde_avance' => $clientAvance->solde_avance,
+                        ], 422);
+                    }
                 }
             }
 
@@ -209,7 +232,7 @@ class VenteController extends Controller
 
         $data = $request->validate([
             'paiements'                => 'required|array',
-            'paiements.*.mode'         => 'required|in:especes,mobile_money,credit',
+            'paiements.*.mode'         => 'required|in:especes,mobile_money,credit,avance_client',
             'paiements.*.montant'      => 'required|numeric|min:0',
             'paiements.*.operateur_id' => 'nullable|exists:referentiels,id',
         ]);
@@ -217,6 +240,12 @@ class VenteController extends Controller
         $hasModeCredit = collect($data['paiements'])->contains('mode', 'credit');
         if ($hasModeCredit && !$vente->client_id) {
             return response()->json(['message' => 'Un client est requis pour une vente à crédit'], 422);
+        }
+
+        // Avance client (somme de toutes les lignes en mode avance_client, pas seulement la première)
+        $montantAvance = collect($data['paiements'])->where('mode', 'avance_client')->sum('montant');
+        if ($montantAvance > 0 && !$vente->client_id) {
+            return response()->json(['message' => 'Un client est requis pour payer avec une avance'], 422);
         }
 
         DB::beginTransaction();
@@ -233,6 +262,20 @@ class VenteController extends Controller
                 if ($detail->variante->stock_actuel < $detail->quantite) {
                     DB::rollBack();
                     return response()->json(['message' => 'Stock insuffisant'], 422);
+                }
+            }
+
+            if ($montantAvance > 0) {
+                $clientAvance = Client::where('boutique_id', $boutique_id)
+                                      ->lockForUpdate()
+                                      ->findOrFail($vente->client_id);
+
+                if ($montantAvance > $clientAvance->solde_avance) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message'      => 'Solde d\'avance insuffisant',
+                        'solde_avance' => $clientAvance->solde_avance,
+                    ], 422);
                 }
             }
 
@@ -327,6 +370,18 @@ class VenteController extends Controller
                 'montant'      => $p['montant'],
                 'operateur_id' => $p['operateur_id'] ?? null,
             ]);
+
+            if ($p['mode'] === 'avance_client') {
+                AvanceClient::create([
+                    'boutique_id' => $boutiqueId,
+                    'client_id'   => $vente->client_id,
+                    'type'        => 'utilisation',
+                    'montant'     => $p['montant'],
+                    'vente_id'    => $vente->id,
+                    'user_id'     => auth()->id(),
+                    'created_at'  => now(),
+                ]);
+            }
         }
 
         // Générer le numéro de facture

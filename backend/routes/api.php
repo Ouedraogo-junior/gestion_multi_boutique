@@ -107,12 +107,16 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::post('/boutiques/{boutique_id}/ventes/{id}/valider',[VenteController::class, 'valider']);
 
         // Clients
-        Route::get('/boutiques/{boutique_id}/clients',                        [ClientController::class, 'index']);
-        Route::post('/boutiques/{boutique_id}/clients',                       [ClientController::class, 'store']);
-        Route::get('/boutiques/{boutique_id}/clients/{id}',                   [ClientController::class, 'show']);
-        Route::put('/boutiques/{boutique_id}/clients/{id}',                   [ClientController::class, 'update']);
-        Route::get('/boutiques/{boutique_id}/clients/{id}/dettes',            [ClientController::class, 'dettes']);
-        Route::post('/boutiques/{boutique_id}/clients/{id}/paiements',        [ClientController::class, 'storePaiement']);
+        Route::get('/boutiques/{boutique_id}/clients',                     [ClientController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/clients',                    [ClientController::class, 'store']);
+        Route::get('/boutiques/{boutique_id}/clients/stats',               [ClientController::class, 'stats']);
+        Route::get('/boutiques/{boutique_id}/clients/derniers-paiements', [ClientController::class, 'derniersPaiements']);
+        Route::get('/boutiques/{boutique_id}/clients/{id}',                [ClientController::class, 'show']);
+        Route::put('/boutiques/{boutique_id}/clients/{id}',                [ClientController::class, 'update']);
+        Route::get('/boutiques/{boutique_id}/clients/{id}/dettes',         [ClientController::class, 'dettes']);
+        Route::post('/boutiques/{boutique_id}/clients/{id}/paiements',     [ClientController::class, 'storePaiement']);
+        Route::get('/boutiques/{boutique_id}/clients/{id}/avances',        [ClientController::class, 'avances']);
+        Route::post('/boutiques/{boutique_id}/clients/{id}/avances',       [ClientController::class, 'storeAvance']);
 
         // Retours
         Route::get('/boutiques/{boutique_id}/retours',      [RetourController::class, 'index']);

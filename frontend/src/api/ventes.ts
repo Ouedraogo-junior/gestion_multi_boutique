@@ -9,7 +9,7 @@ export interface VenteDetailPayload {
 }
 
 export interface PaiementPayload {
-  mode: 'especes' | 'mobile_money' | 'credit'
+  mode: 'especes' | 'mobile_money' | 'credit' | 'avance_client'
   operateur_id?: number | null
   montant: number
 }
@@ -58,7 +58,7 @@ export interface Vente {
   details?: VenteDetail[]
   paiements?: {
     id: number
-    mode: 'especes' | 'mobile_money' | 'credit'
+    mode: 'especes' | 'mobile_money' | 'credit' | 'avance_client'
     montant: number
     operateur_id: number | null
   }[]

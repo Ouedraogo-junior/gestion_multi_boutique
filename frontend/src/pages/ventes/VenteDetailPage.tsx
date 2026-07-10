@@ -21,9 +21,10 @@ const STATUT = {
 }
 
 const MODE_LABELS: Record<string, string> = {
-  especes:      'Espèces',
-  mobile_money: 'Mobile Money',
-  credit:       'Crédit',
+  especes:       'Espèces',
+  mobile_money:  'Mobile Money',
+  avance_client: 'Avance client',
+  credit:        'Crédit',
 }
 
 export default function VenteDetailPage() {

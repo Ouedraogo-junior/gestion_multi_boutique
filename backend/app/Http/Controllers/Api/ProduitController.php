@@ -164,44 +164,67 @@ class ProduitController extends Controller
         $produit = Produit::where('boutique_id', $boutique_id)->findOrFail($id);
         $avant = $produit->toArray();
 
-        if (!empty($data['fournisseur_nom'])) {
-            Fournisseur::firstOrCreate(
-                [
-                    'boutique_id' => $boutique_id,
-                    'nom'         => $data['fournisseur_nom'],
-                ],
-                [
-                    'telephone' => $data['fournisseur_telephone'] ?? null,
-                    'adresse'   => $data['fournisseur_contact']   ?? null,
-                    'notes'     => $data['fournisseur_notes']     ?? null,
-                    'actif'     => true,
-                ]
-            );
-        }
-
         $data = $request->validate([
-            'designation'           => 'sometimes|string|max:200',
-            'categorie_id'          => 'nullable|exists:referentiels,id',
-            'prix_achat'            => 'nullable|numeric|min:0',
-            'prix_vente'            => 'sometimes|numeric|min:0',
-            'description'           => 'nullable|string',
-            'etat'                  => 'sometimes|in:neuf,occasion',
-            'fournisseur_nom'       => 'nullable|string|max:150',
-            'fournisseur_contact'   => 'nullable|string|max:100',
-            'fournisseur_telephone' => 'nullable|string|max:30',
-            'fournisseur_notes'     => 'nullable|string',
-            'seuil_alerte'          => 'nullable|integer|min:0',
+            'designation'              => 'sometimes|string|max:200',
+            'categorie_id'             => 'nullable|exists:referentiels,id',
+            'prix_achat'               => 'nullable|numeric|min:0',
+            'prix_vente'               => 'sometimes|numeric|min:0',
+            'description'              => 'nullable|string',
+            'etat'                     => 'sometimes|in:neuf,occasion',
+            'fournisseur_nom'          => 'nullable|string|max:150',
+            'fournisseur_contact'      => 'nullable|string|max:100',
+            'fournisseur_telephone'    => 'nullable|string|max:30',
+            'fournisseur_notes'        => 'nullable|string',
+            'seuil_alerte'             => 'nullable|integer|min:0',
+            'variantes'                => 'sometimes|array',
+            'variantes.*.id'           => 'required|exists:variantes,id',
+            'variantes.*.prix_achat'   => 'nullable|numeric|min:0',
+            'variantes.*.prix_vente'   => 'nullable|numeric|min:0',
+            'variantes.*.seuil_alerte' => 'nullable|integer|min:0',
+            'variantes.*.attributs'    => 'sometimes|array',
         ]);
 
-        $produit->update($data);
+        DB::beginTransaction();
+        try {
+            $produit->update(collect($data)->except('variantes')->toArray());
 
-        $request->auditAction = 'produit_modifie';
-        $request->auditModule = 'produits';
-        $request->auditDetails = ['avant' => $avant, 'apres' => $produit->fresh()->toArray()];
+            if (!empty($data['variantes'])) {
+                foreach ($data['variantes'] as $v) {
+                    $variante = Variante::where('boutique_id', $boutique_id)
+                                        ->where('produit_id', $produit->id)
+                                        ->findOrFail($v['id']);
 
-        return response()->json($produit->fresh()->load('variantes'));
+                    $ancienPrix = $variante->prix_vente;
+
+                    $variante->update([
+                        'attributs'    => $v['attributs']    ?? $variante->attributs,
+                        'prix_achat'   => $v['prix_achat']   ?? $variante->prix_achat,
+                        'prix_vente'   => $v['prix_vente']   ?? $variante->prix_vente,
+                        'seuil_alerte' => $v['seuil_alerte'] ?? $variante->seuil_alerte,
+                    ]);
+
+                    if (isset($v['prix_vente']) && $v['prix_vente'] != $ancienPrix) {
+                        // audit prix_modifie déjà géré par updateVariante,
+                        // ici on le logue dans le contexte de la mise à jour produit
+                    }
+                }
+            }
+
+            DB::commit();
+
+            $request->auditAction  = 'produit_modifie';
+            $request->auditModule  = 'produits';
+            $request->auditDetails = ['avant' => $avant, 'apres' => $produit->fresh()->toArray()];
+
+            return response()->json($produit->fresh()->load('variantes'));
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur : ' . $e->getMessage()], 500);
+        }
     }
 
+    
     public function toggleActif(Request $request, int $boutique_id, int $id): JsonResponse
     {
         $produit = Produit::where('boutique_id', $boutique_id)->findOrFail($id);

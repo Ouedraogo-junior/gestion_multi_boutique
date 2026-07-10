@@ -93,11 +93,13 @@ export default function ProduitFormPage() {
 
         if (p.has_variantes && p.variantes) {
           setVariantes(p.variantes.map((v: {
+            id:           number
             attributs:    Record<string, string>
             prix_achat:   number
             prix_vente:   number
             seuil_alerte: number
           }) => ({
+            id:            v.id,
             attributs:     v.attributs    ?? {},
             prix_achat:    String(v.prix_achat   ?? ''),
             prix_vente:    String(v.prix_vente   ?? ''),
@@ -123,6 +125,7 @@ export default function ProduitFormPage() {
         has_variantes: hasVariantes,
         stock_initial: hasVariantes ? undefined : Number(stockInitial),
         variantes: hasVariantes ? variantes.map(v => ({
+          ...(isEdit && v.id ? { id: v.id } : {}), 
           attributs:     v.attributs,
           prix_achat:    v.prix_achat    ? Number(v.prix_achat)    : null,
           prix_vente:    v.prix_vente    ? Number(v.prix_vente)    : null,

@@ -150,7 +150,7 @@ class RapportController extends Controller
     // -------------------------------------------------------
     // Rapport dettes clients
     // -------------------------------------------------------
-    public function dettes(int $boutique_id): JsonResponse
+   public function dettes(int $boutique_id): JsonResponse
     {
         $dettes = DB::select("
             SELECT
@@ -158,18 +158,36 @@ class RapportController extends Controller
                 c.nom,
                 c.prenom,
                 c.telephone,
-                COALESCE(SUM(vp.montant), 0) AS total_credit,
-                COALESCE(SUM(pc.montant), 0) AS total_paye,
-                COALESCE(SUM(vp.montant), 0) - COALESCE(SUM(pc.montant), 0) AS solde_dette
+                COALESCE((
+                    SELECT SUM(vp.montant)
+                    FROM ventes v
+                    JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
+                    WHERE v.client_id = c.id AND v.statut = 'validee' AND v.boutique_id = ?
+                ), 0) AS total_credit,
+                COALESCE((
+                    SELECT SUM(pc.montant)
+                    FROM paiements_clients pc
+                    JOIN ventes v ON v.id = pc.vente_id AND v.client_id = c.id AND v.statut = 'validee'
+                    WHERE pc.client_id = c.id AND v.boutique_id = ?
+                ), 0) AS total_paye,
+                COALESCE((
+                    SELECT SUM(vp.montant)
+                    FROM ventes v
+                    JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
+                    WHERE v.client_id = c.id AND v.statut = 'validee' AND v.boutique_id = ?
+                ), 0)
+                -
+                COALESCE((
+                    SELECT SUM(pc.montant)
+                    FROM paiements_clients pc
+                    JOIN ventes v ON v.id = pc.vente_id AND v.client_id = c.id AND v.statut = 'validee'
+                    WHERE pc.client_id = c.id AND v.boutique_id = ?
+                ), 0) AS solde_dette
             FROM clients c
-            LEFT JOIN ventes v ON v.client_id = c.id AND v.statut = 'validee'
-            LEFT JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-            LEFT JOIN paiements_clients pc ON pc.client_id = c.id
             WHERE c.boutique_id = ?
-            GROUP BY c.id, c.nom, c.prenom, c.telephone
             HAVING solde_dette > 0
             ORDER BY solde_dette DESC
-        ", [$boutique_id]);
+        ", [$boutique_id, $boutique_id, $boutique_id, $boutique_id, $boutique_id]);
 
         return response()->json([
             'boutique_id'  => $boutique_id,
@@ -257,12 +275,21 @@ class RapportController extends Controller
                        ->sum(fn($v) => $v->stock_actuel * $this->getPrixAchatVariante($v));
 
             $dettes = DB::select("
-                SELECT COALESCE(SUM(vp.montant), 0) - COALESCE(SUM(pc.montant), 0) AS solde
-                FROM ventes v
-                LEFT JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-                LEFT JOIN paiements_clients pc ON pc.vente_id = v.id
-                WHERE v.boutique_id = ? AND v.statut = 'validee'
-            ", [$boutique->id]);
+                SELECT
+                    COALESCE((
+                        SELECT SUM(vp.montant)
+                        FROM ventes v
+                        JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
+                        WHERE v.boutique_id = ? AND v.statut = 'validee'
+                    ), 0)
+                    -
+                    COALESCE((
+                        SELECT SUM(pc.montant)
+                        FROM paiements_clients pc
+                        JOIN ventes v ON v.id = pc.vente_id AND v.statut = 'validee'
+                        WHERE v.boutique_id = ?
+                    ), 0) AS solde
+            ", [$boutique->id, $boutique->id]);
 
             $dette = $dettes[0]->solde ?? 0;
 

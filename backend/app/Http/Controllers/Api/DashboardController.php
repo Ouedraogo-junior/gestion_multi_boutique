@@ -48,12 +48,21 @@ class DashboardController extends Controller
 
         // Dettes clients
         $dettes = DB::select("
-            SELECT COALESCE(SUM(vp.montant), 0) - COALESCE(SUM(pc.montant), 0) AS total_dettes
-            FROM ventes v
-            LEFT JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-            LEFT JOIN paiements_clients pc ON pc.vente_id = v.id
-            WHERE v.boutique_id = ? AND v.statut = 'validee'
-        ", [$boutique_id]);
+            SELECT
+                COALESCE((
+                    SELECT SUM(vp.montant)
+                    FROM ventes v
+                    JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
+                    WHERE v.boutique_id = ? AND v.statut = 'validee'
+                ), 0)
+                -
+                COALESCE((
+                    SELECT SUM(pc.montant)
+                    FROM paiements_clients pc
+                    JOIN ventes v ON v.id = pc.vente_id AND v.statut = 'validee'
+                    WHERE v.boutique_id = ?
+                ), 0) AS total_dettes
+        ", [$boutique_id, $boutique_id]);
 
         $totalDettes = $dettes[0]->total_dettes ?? 0;
 
@@ -210,12 +219,21 @@ class DashboardController extends Controller
                                     ->sum(fn($v) => $v->stock_actuel * $this->getPrixAchatVariante($v));
 
             $dettes = DB::select("
-                SELECT COALESCE(SUM(vp.montant), 0) - COALESCE(SUM(pc.montant), 0) AS total
-                FROM ventes v
-                LEFT JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-                LEFT JOIN paiements_clients pc ON pc.vente_id = v.id
-                WHERE v.boutique_id = ? AND v.statut = 'validee'
-            ", [$boutique->id]);
+                SELECT
+                    COALESCE((
+                        SELECT SUM(vp.montant)
+                        FROM ventes v
+                        JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
+                        WHERE v.boutique_id = ? AND v.statut = 'validee'
+                    ), 0)
+                    -
+                    COALESCE((
+                        SELECT SUM(pc.montant)
+                        FROM paiements_clients pc
+                        JOIN ventes v ON v.id = pc.vente_id AND v.statut = 'validee'
+                        WHERE v.boutique_id = ?
+                    ), 0) AS total
+            ", [$boutique->id, $boutique->id]);
 
             $dette = $dettes[0]->total ?? 0;
 

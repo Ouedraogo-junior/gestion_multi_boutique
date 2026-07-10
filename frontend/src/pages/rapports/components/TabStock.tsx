@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { formatMontant } from '@/utils/format'
 
 type VarianteStock = {
@@ -19,6 +22,14 @@ type StockData = {
 }
 
 export default function TabStock({ data }: { data: StockData }) {
+  const [search, setSearch] = useState('')
+
+  const variantesFiltrees = (data.variantes ?? []).filter(v => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return v.produit?.toLowerCase().includes(q) || v.reference?.toLowerCase().includes(q)
+  })
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -36,6 +47,16 @@ export default function TabStock({ data }: { data: StockData }) {
         </div>
       </div>
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+        <Input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Rechercher un produit..."
+          className="pl-9 border-gray-200"
+        />
+      </div>
+
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -51,25 +72,33 @@ export default function TabStock({ data }: { data: StockData }) {
               </tr>
             </thead>
             <tbody>
-              {(data.variantes ?? []).map(v => (
-                <tr key={v.variante_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
-                  <td className="py-3 px-4 text-sm text-[#1C1C1C]">{v.produit}</td>
-                  <td className="py-3 px-4 text-xs font-mono text-gray-400">{v.reference}</td>
-                  <td className="py-3 px-4 text-sm text-gray-500">
-                    {v.attributs ? Object.values(v.attributs).join(' / ') : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="py-3 px-4 text-sm font-medium text-[#1C1C1C]">{v.stock_actuel ?? 0}</td>
-                  <td className="py-3 px-4 text-sm text-gray-400">{v.seuil_alerte ?? 0}</td>
-                  <td className="py-3 px-4 text-sm text-gray-700">{formatMontant(v.valeur ?? 0)}</td>
-                  <td className="py-3 px-4">
-                    {v.en_alerte ? (
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-red-50 text-[#E8314A] font-medium">Alerte</span>
-                    ) : (
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-[#D4F0E2] text-[#145C38] font-medium">OK</span>
-                    )}
+              {variantesFiltrees.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-10 text-gray-400">
+                    Aucun produit trouvé
                   </td>
                 </tr>
-              ))}
+              ) : (
+                variantesFiltrees.map(v => (
+                  <tr key={v.variante_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                    <td className="py-3 px-4 text-sm text-[#1C1C1C]">{v.produit}</td>
+                    <td className="py-3 px-4 text-xs font-mono text-gray-400">{v.reference}</td>
+                    <td className="py-3 px-4 text-sm text-gray-500">
+                      {v.attributs ? Object.values(v.attributs).join(' / ') : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="py-3 px-4 text-sm font-medium text-[#1C1C1C]">{v.stock_actuel ?? 0}</td>
+                    <td className="py-3 px-4 text-sm text-gray-400">{v.seuil_alerte ?? 0}</td>
+                    <td className="py-3 px-4 text-sm text-gray-700">{formatMontant(v.valeur ?? 0)}</td>
+                    <td className="py-3 px-4">
+                      {v.en_alerte ? (
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-red-50 text-[#E8314A] font-medium">Alerte</span>
+                      ) : (
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-[#D4F0E2] text-[#145C38] font-medium">OK</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
