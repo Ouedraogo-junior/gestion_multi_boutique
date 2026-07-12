@@ -45,7 +45,7 @@ export default function VenteDetailPage() {
 
   const handlePrint = useReactToPrint({
     contentRef: recuRef,
-    pageStyle: `@page { size: A5; margin: 0; } @media print { body { margin: 0; } }`,
+    pageStyle: `@page { size: A4; margin: 0; } @media print { body { margin: 0; } }`,
   })
 
   useEffect(() => {

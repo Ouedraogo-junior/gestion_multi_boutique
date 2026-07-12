@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Eye, ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 //import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getVentes, annulerVente } from '@/api/ventes'
-import type { Vente } from '@/api/ventes'
+import { getVentes, getVentesStats, annulerVente, supprimerVente } from '@/api/ventes'
+import type { Vente, VenteStats } from '@/api/ventes'
 import { formatMontant, formatDate } from '@/utils/format'
 import { useAuth } from '@/hooks/useAuth'
 import { ROLES } from '@/utils/constants'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+
 
 const STATUT_LABELS: Record<string, { label: string; className: string }> = {
   brouillon: { label: 'Brouillon', className: 'bg-gray-100 text-gray-600' },
@@ -30,6 +33,15 @@ export default function VentesPage() {
   const [annulerTarget, setAnnulerTarget] = useState<Vente | null>(null)
   const [page, setPage]               = useState(1)
   const [lastPage, setLastPage]       = useState(1)
+  const [supprimerTarget, setSupprimerTarget] = useState<Vente | null>(null)
+
+  const today    = new Date().toISOString().slice(0, 10)
+  const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+
+  const [debut, setDebut]                 = useState(firstDay)
+  const [fin, setFin]                     = useState(today)
+  const [stats, setStats]                 = useState<VenteStats | null>(null)
+  const [statsRefresh, setStatsRefresh]   = useState(0)
 
   const isAdmin = user?.role === ROLES.ADMIN_BOUTIQUE || user?.role === ROLES.SUPER_ADMIN
 
@@ -50,6 +62,14 @@ export default function VentesPage() {
 
   useEffect(() => { load() }, [id, filtreStatut, page])
 
+
+  // Chargement des stats — effect séparé, indépendant de la pagination/filtre statut
+  useEffect(() => {
+    getVentesStats(id, { debut, fin })
+      .then(res => setStats(res.data))
+      .catch(() => { /* silencieux, pas critique */ })
+  }, [id, statsRefresh])
+
   const handleAnnuler = async () => {
     if (!annulerTarget) return
     try {
@@ -63,11 +83,27 @@ export default function VentesPage() {
     }
   }
 
+  const handleSupprimer = async () => {
+    if (!supprimerTarget) return
+    try {
+      await supprimerVente(id, supprimerTarget.id)
+      toast.success('Brouillon supprimé')
+      setSupprimerTarget(null)
+      load()
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Erreur lors de la suppression')
+    }
+  }
+
     // Helpers à ajouter en haut du fichier
     const getResteAPayer = (v: Vente) => {
-    const credit = v.paiements?.filter(p => p.mode === 'credit').reduce((s, p) => s + Number(p.montant), 0) ?? 0
-    return credit
+      const credit    = Number(v.credit_accorde_sum ?? 0)
+      const rembourse = Number(v.total_rembourse_sum ?? 0)
+      return Math.max(0, credit - rembourse)
     }
+
+    const canDelete = (v: Vente) => isAdmin || v.vendeur_id === user?.id
 
     const MODE_LABELS: Record<string, string> = {
       especes:       'Espèces',
@@ -92,6 +128,7 @@ export default function VentesPage() {
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -106,6 +143,64 @@ export default function VentesPage() {
           Nouvelle vente
         </Button>
       </div>
+
+      {/* Période des KPIs */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1">
+              <Label className="text-sm text-gray-500">Du</Label>
+              <Input type="date" value={debut} onChange={e => setDebut(e.target.value)} className="border-gray-200 w-40" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm text-gray-500">Au</Label>
+              <Input type="date" value={fin} onChange={e => setFin(e.target.value)} className="border-gray-200 w-40" />
+            </div>
+            <Button onClick={() => setStatsRefresh(n => n + 1)} className="bg-[#1A7A4A] hover:bg-[#145C38] text-white">
+              Actualiser
+            </Button>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        {stats && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-sm text-gray-500 mb-1">CA total</p>
+                <p className="text-xl font-semibold text-[#1C1C1C]">{formatMontant(stats.ca_total)}</p>
+                <p className="text-xs text-gray-400 mt-1">{stats.total_ventes_validees} vente{stats.total_ventes_validees > 1 ? 's' : ''} validée{stats.total_ventes_validees > 1 ? 's' : ''}</p>
+              </div>
+              <div className="bg-[#D4F0E2] rounded-xl p-4">
+                <p className="text-sm text-gray-500 mb-1">Réglées intégralement</p>
+                <p className="text-xl font-semibold text-[#1A7A4A]">{formatMontant(stats.sans_credit.montant)}</p>
+                <p className="text-xs text-gray-400 mt-1">{stats.sans_credit.count} vente{stats.sans_credit.count > 1 ? 's' : ''}</p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4">
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-sm text-gray-500">Montant mis à crédit</p>
+                  <span
+                    title="Montant réellement accordé à crédit sur la période — n'inclut pas la part payée en espèces sur ces mêmes ventes. Une vente peut être partiellement réglée et partiellement à crédit."
+                    className="cursor-help"
+                  >
+                    <Info size={13} className="text-gray-400" />
+                  </span>
+                </div>
+                <p className="text-xl font-semibold text-[#E8314A]">{formatMontant(stats.avec_credit.credit_accorde)}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {stats.avec_credit.count} vente{stats.avec_credit.count > 1 ? 's' : ''} concernée{stats.avec_credit.count > 1 ? 's' : ''} (partiellement ou totalement)
+                </p>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4">
+                <p className="text-sm text-gray-500 mb-1">Reste dû (à ce jour)</p>
+                <p className="text-xl font-semibold text-[#E8314A]">{formatMontant(stats.avec_credit.reste_du)}</p>
+                <p className="text-xs text-gray-400 mt-1">sur les ventes de la période</p>
+              </div>
+            </div>
+            {stats.brouillons > 0 && (
+              <p className="text-xs text-gray-400">{stats.brouillons} brouillon{stats.brouillons > 1 ? 's' : ''} en attente sur la période</p>
+            )}
+          </div>
+        )}
 
       {/* Filtres */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -226,6 +321,14 @@ export default function VentesPage() {
                               Continuer
                             </button>
                           )}
+                          {v.statut === 'brouillon' && canDelete(v) && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setSupprimerTarget(v) }}
+                              className="text-xs text-gray-400 hover:text-[#E8314A] transition-colors border border-gray-200 px-2 py-0.5 rounded"
+                            >
+                              Supprimer
+                            </button>
+                          )}
                           {isAdmin && v.statut === 'validee' && (
                             <button
                               onClick={e => { e.stopPropagation(); setAnnulerTarget(v) }}
@@ -291,6 +394,27 @@ export default function VentesPage() {
               className="bg-[#E8314A] hover:bg-red-700 text-white"
             >
               Confirmer l'annulation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog suppression */}
+      <AlertDialog open={!!supprimerTarget} onOpenChange={open => !open && setSupprimerTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce brouillon ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ce brouillon de vente sera définitivement supprimé. Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Retour</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSupprimer}
+              className="bg-[#E8314A] hover:bg-red-700 text-white"
+            >
+              Confirmer la suppression
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

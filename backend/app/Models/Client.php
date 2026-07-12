@@ -32,6 +32,11 @@ class Client extends Model
         return $this->hasMany(AvanceClient::class);
     }
 
+    public function dettesInitiales(): HasMany
+    {
+        return $this->hasMany(DetteInitiale::class);
+    }
+
     public function scopeAvecDette(Builder $query, int $boutiqueId): Builder
     {
         $achatSub = DB::table('ventes')
@@ -71,15 +76,29 @@ class Client extends Model
             ->select('v.client_id')
             ->selectRaw('COALESCE(SUM(COALESCE(credit.montant_credit, 0) - COALESCE(paye.montant_paye, 0)), 0) as total_dette');
 
+
+        $paiementsDIParDette = DB::table('dette_initiale_paiements')
+            ->select('dette_initiale_id')
+            ->selectRaw('SUM(montant) as total_paye')
+            ->groupBy('dette_initiale_id');
+
+        $detteInitialeSub = DB::table('dettes_initiales as di')
+            ->leftJoinSub($paiementsDIParDette, 'pdi', 'pdi.dette_initiale_id', '=', 'di.id')
+            ->where('di.boutique_id', $boutiqueId)
+            ->groupBy('di.client_id')
+            ->select('di.client_id')
+            ->selectRaw('COALESCE(SUM(di.montant - COALESCE(pdi.total_paye, 0)), 0) as total_dette_initiale');
+
         return $query
             ->leftJoinSub($achatSub, 'achat', 'achat.client_id', '=', 'clients.id')
             ->leftJoinSub($payeClientSub, 'paye_client', 'paye_client.client_id', '=', 'clients.id')
             ->leftJoinSub($detteSub, 'dette', 'dette.client_id', '=', 'clients.id')
+            ->leftJoinSub($detteInitialeSub, 'dette_initiale', 'dette_initiale.client_id', '=', 'clients.id')
             ->select('clients.*')
             ->selectRaw('COALESCE(achat.total_achat, 0) as total_achat')
             ->selectRaw('COALESCE(paye_client.total_paye, 0) as total_paye')
-            ->selectRaw('COALESCE(dette.total_dette, 0) as total_dette');
-    }
+            ->selectRaw('COALESCE(dette.total_dette, 0) + COALESCE(dette_initiale.total_dette_initiale, 0) as total_dette');
+            }
 
     public function getSoldeAvanceAttribute(): float
     {

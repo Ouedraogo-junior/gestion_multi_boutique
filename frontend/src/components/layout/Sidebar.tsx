@@ -1,9 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useBoutique } from '@/hooks/useBoutique'
+import { useState } from 'react'
+import ProfileEditModal from './ProfileEditModal'
 import {
   LayoutDashboard, ShoppingCart, Package, Users,
   Receipt, BarChart3, Settings, LogOut, X,
-  Store, FileText, RotateCcw, ClipboardList, Truck, Wallet,
+  Store, FileText, RotateCcw, ClipboardList, Truck, Wallet, Activity,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ROLES } from '@/utils/constants'
@@ -24,6 +26,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { boutiqueActive } = useBoutique()
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   const boutiqueId = user?.role === ROLES.SUPER_ADMIN
   ? boutiqueActive?.id
@@ -37,6 +40,9 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 // console.log('boutiqueId:', user?.boutique_id)
 
   const superAdminItemsAvecBoutique: MenuItem[] = [
+    { path: `${base}/ventes`, icon: ShoppingCart, label: 'Ventes'},
+    { path: `${base}/activites`, icon: Activity, label: 'Activités'},
+    { path: `${base}/produits`,     icon: Package,         label: 'Produits'},
     { path: `${base}/clients`,      icon: Users,         label: 'Clients & Dettes' },
     { path: `${base}/rapports`,     icon: BarChart3,     label: 'Rapports' },
     { path: `${base}/utilisateurs`, icon: Users,         label: 'Utilisateurs' },
@@ -57,6 +63,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const adminItems: MenuItem[] = [
     { path: `${base}/dashboard`,    icon: LayoutDashboard, label: 'Tableau de bord'},
     { path: `${base}/ventes`, icon: ShoppingCart, label: 'Ventes'},
+    { path: `${base}/activites`, icon: Activity, label: 'Activités'},
     { path: `${base}/produits`,     icon: Package,         label: 'Produits'},
     { path: `${base}/approvisionnements`, icon: Truck,     label: 'Approvisionnements'},
     { path: `${base}/dettes-fournisseurs`, icon: Wallet, label: 'Dettes fournisseurs' },
@@ -72,6 +79,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const vendeurItems: MenuItem[] = [
     { path: `${base}/dashboard`,    icon: LayoutDashboard, label: 'Tableau de bord'},
     { path: `${base}/ventes`,          icon: FileText,    label: 'Mes ventes'},
+    { path: `${base}/activites`, icon: Activity, label: 'Activités'},
     { path: `${base}/ventes/nouvelle`, icon: ShoppingCart,label: 'Nouvelle vente'},
     { path: `${base}/produits`,        icon: Package,     label: 'Produits'},
     { path: `${base}/approvisionnements`, icon: Truck, label: 'Approvisionnements'},
@@ -181,8 +189,11 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* User + logout */}
         <div className="p-4 border-t border-gray-200 space-y-1">
-          <div className="flex items-center gap-3 px-4 py-2">
-            <div className="w-8 h-8 rounded-full bg-[#1A7A4A] flex items-center justify-center">
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#F4F6F5] transition-colors text-left"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#1A7A4A] flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-medium">
                 {user?.prenom?.[0]}{user?.nom?.[0]}
               </span>
@@ -193,7 +204,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </p>
               <p className="text-xs text-gray-500 truncate">{user?.pseudo}</p>
             </div>
-          </div>
+          </button>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[#E8314A] hover:bg-red-50 transition-colors text-sm"
@@ -203,6 +214,8 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           </button>
         </div>
       </aside>
+
+      <ProfileEditModal open={profileModalOpen} onOpenChange={setProfileModalOpen} />
     </>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CreditCard, Printer, User, Phone, MapPin,
-  FileText, ChevronRight, Loader2, Wallet
+  FileText, ChevronRight, Loader2, Wallet, ReceiptText
 } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import { useBoutique } from '@/hooks/useBoutique'
 import PaiementDialog from './components/PaiementDialog'
 import AvanceDialog from './components/AvanceDialog'
 import RecuPaiementImprimable from './components/RecuPaiementImprimable'
+import DetteInitialeDialog from './components/DetteInitialeDialog'
+import type { DetteInitiale } from '@/api/clients'
 
 export default function ClientDetailPage() {
   const { boutiqueId, clientId } = useParams()
@@ -32,6 +34,10 @@ export default function ClientDetailPage() {
   const [soldeAvance, setSoldeAvance]           = useState(0)
   const [avances, setAvances]                   = useState<AvanceEntry[]>([])
   const [avanceDialogOpen, setAvanceDialogOpen] = useState(false)
+
+  // Dettes initiales
+  const [dettesInitiales, setDettesInitiales]           = useState<DetteInitiale[]>([])
+  const [detteInitialeDialogOpen, setDetteInitialeDialogOpen] = useState(false)
 
   const [paiementOpen, setPaiementOpen] = useState(false)
   const [dernierPaiement, setDernierPaiement] = useState<{
@@ -66,6 +72,7 @@ export default function ClientDetailPage() {
       ])
       setClient(resClient.data)
       setDettes(resDettes.data.dettes ?? [])
+      setDettesInitiales(resDettes.data.dettes_initiales ?? [])
       setTotalDette(resDettes.data.total_dette ?? 0)
       const liste: PaiementHistorique[] = resPaiements.data ?? []
       setPaiements(liste)
@@ -161,6 +168,17 @@ export default function ClientDetailPage() {
             <Wallet size={15} className="mr-1.5" />
             Ajouter une avance
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDetteInitialeDialogOpen(true)}
+            className="border-gray-200 text-gray-600 hover:text-[#E8314A]"
+          >
+            <ReceiptText size={15} className="mr-1.5" />
+            Dette antérieure
+          </Button>
+
           {totalDette > 0 && (
             <Button
               size="sm"
@@ -262,6 +280,45 @@ export default function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      {/*  */}
+    <div className="bg-white rounded-xl border border-gray-200">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h2 className="text-sm font-medium text-[#1C1C1C]">Dettes antérieures</h2>
+      </div>
+      {dettesInitiales.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 text-sm">
+          Aucune dette antérieure en cours
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Date</th>
+                <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Montant initial</th>
+                <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Déjà payé</th>
+                <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Solde restant</th>
+                <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dettesInitiales.map(d => (
+                <tr key={d.dette_initiale_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                  <td className="py-3 px-5 text-sm text-gray-500">{formatDate(d.date)}</td>
+                  <td className="py-3 px-5 text-sm text-gray-700 text-right">{formatMontant(d.montant_initial)}</td>
+                  <td className="py-3 px-5 text-sm text-[#1A7A4A] text-right">{formatMontant(d.total_paye)}</td>
+                  <td className="py-3 px-5 text-right">
+                    <span className="text-sm font-medium text-[#E8314A]">{formatMontant(d.solde_restant)}</span>
+                  </td>
+                  <td className="py-3 px-5 text-sm text-gray-400 italic">{d.note ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
 
       {/* Historique des avances */}
       <div className="bg-white rounded-xl border border-gray-200">
@@ -418,6 +475,12 @@ export default function ClientDetailPage() {
         boutiqueId={boutiqueIdNum}
         client={avanceDialogOpen ? client : null}
         onClose={() => { setAvanceDialogOpen(false); load() }}
+      />
+
+      <DetteInitialeDialog
+        boutiqueId={boutiqueIdNum}
+        client={detteInitialeDialogOpen ? client : null}
+        onClose={() => { setDetteInitialeDialogOpen(false); load() }}
       />
 
       {/* Zone impression cachée */}

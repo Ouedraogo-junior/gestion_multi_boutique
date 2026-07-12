@@ -19,7 +19,11 @@ class VenteController extends Controller
     public function index(Request $request, int $boutique_id): JsonResponse
     {
         $query = Vente::where('boutique_id', $boutique_id)
-                      ->with(['client', 'vendeur', 'details.variante.produit', 'paiements']);
+                    ->with(['client', 'vendeur', 'details.variante.produit', 'paiements'])
+                    ->withSum(['paiements as credit_accorde_sum' => function ($q) {
+                        $q->where('mode', 'credit');
+                    }], 'montant')
+                    ->withSum('paiementsClients as total_rembourse_sum', 'montant');
 
         if ($request->has('statut')) {
             $query->where('statut', $request->statut);
@@ -391,6 +395,113 @@ class VenteController extends Controller
             'statut'          => 'validee',
             'numero_facture'  => $numeroFacture,
             'date_validation' => now(),
+        ]);
+    }
+
+    public function destroy(Request $request, int $boutique_id, int $id): JsonResponse
+    {
+        $query = Vente::where('boutique_id', $boutique_id)
+                    ->where('statut', 'brouillon');
+
+        // Un vendeur ne peut supprimer que ses propres brouillons
+        if (auth()->user()->role === 'vendeur') {
+            $query->where('vendeur_id', auth()->id());
+        }
+
+        $vente = $query->findOrFail($id);
+
+        DB::beginTransaction();
+
+        try {
+            $venteId  = $vente->id;
+            $totalNet = $vente->total_net;
+
+            // Aucun mouvement de stock ni paiement n'existe encore pour un brouillon,
+            // donc rien à réintégrer. On supprime simplement les lignes puis la vente.
+            $vente->details()->delete();
+            $vente->delete();
+
+            DB::commit();
+
+            $request->auditAction  = 'vente_brouillon_supprime';
+            $request->auditModule  = 'ventes';
+            $request->auditDetails = ['vente_id' => $venteId, 'total_net' => $totalNet];
+
+            return response()->json(['message' => 'Brouillon supprimé']);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur : ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function stats(Request $request, int $boutique_id): JsonResponse
+    {
+        $data = $request->validate([
+            'debut' => 'nullable|date',
+            'fin'   => 'nullable|date|after_or_equal:debut',
+        ]);
+
+        $debut = isset($data['debut']) ? $data['debut'] . ' 00:00:00' : null;
+        $fin   = isset($data['fin'])   ? $data['fin']   . ' 23:59:59' : null;
+
+        $ventesQuery = Vente::where('boutique_id', $boutique_id)->where('statut', 'validee');
+        if ($debut && $fin) {
+            $ventesQuery->whereBetween('date_validation', [$debut, $fin]);
+        }
+
+        $venteIds      = (clone $ventesQuery)->pluck('id');
+        $caTotal       = (clone $ventesQuery)->sum('total_net');
+        $totalValidees = $venteIds->count();
+
+        // Ventes ayant au moins une ligne de paiement en mode credit
+        $venteIdsAvecCredit = DB::table('vente_paiements')
+            ->whereIn('vente_id', $venteIds)
+            ->where('mode', 'credit')
+            ->distinct()
+            ->pluck('vente_id');
+
+        $nbAvecCredit = $venteIdsAvecCredit->count();
+        $nbSansCredit = $totalValidees - $nbAvecCredit;
+
+        // Montant RÉELLEMENT mis à crédit (pas le total_net des ventes concernées)
+        $totalCreditAccorde = DB::table('vente_paiements')
+            ->whereIn('vente_id', $venteIdsAvecCredit)
+            ->where('mode', 'credit')
+            ->sum('montant');
+
+        // CA des ventes SANS AUCUNE ligne credit (entièrement réglées à la vente)
+        $montantSansCredit = Vente::whereIn('id', $venteIds)
+            ->whereNotIn('id', $venteIdsAvecCredit)
+            ->sum('total_net');
+
+        // Remboursements à ce jour sur ces ventes précises (pas bornés à la période :
+        // un remboursement peut survenir après la fin de la période choisie)
+        $totalRembourse = DB::table('paiements_clients')
+            ->whereIn('vente_id', $venteIdsAvecCredit)
+            ->sum('montant');
+
+        $resteDu = $totalCreditAccorde - $totalRembourse;
+
+        $brouillonsQuery = Vente::where('boutique_id', $boutique_id)->where('statut', 'brouillon');
+        if ($debut && $fin) {
+            $brouillonsQuery->whereBetween('created_at', [$debut, $fin]);
+        }
+
+        return response()->json([
+            'periode' => ['debut' => $data['debut'] ?? null, 'fin' => $data['fin'] ?? null],
+            'ca_total' => (float) $caTotal,
+            'total_ventes_validees' => $totalValidees,
+            'sans_credit' => [
+                'count'   => $nbSansCredit,
+                'montant' => (float) $montantSansCredit,
+            ],
+            'avec_credit' => [
+                'count'          => $nbAvecCredit,
+                'credit_accorde' => (float) $totalCreditAccorde,
+                'reste_du'       => (float) $resteDu,
+            ],
+            'brouillons' => $brouillonsQuery->count(),
         ]);
     }
 }

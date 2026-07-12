@@ -158,32 +158,37 @@ class RapportController extends Controller
                 c.nom,
                 c.prenom,
                 c.telephone,
-                COALESCE((
-                    SELECT SUM(vp.montant)
-                    FROM ventes v
-                    JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-                    WHERE v.client_id = c.id AND v.statut = 'validee' AND v.boutique_id = ?
-                ), 0) AS total_credit,
-                COALESCE((
-                    SELECT SUM(pc.montant)
-                    FROM paiements_clients pc
-                    JOIN ventes v ON v.id = pc.vente_id AND v.client_id = c.id AND v.statut = 'validee'
-                    WHERE pc.client_id = c.id AND v.boutique_id = ?
-                ), 0) AS total_paye,
-                COALESCE((
-                    SELECT SUM(vp.montant)
-                    FROM ventes v
-                    JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-                    WHERE v.client_id = c.id AND v.statut = 'validee' AND v.boutique_id = ?
-                ), 0)
-                -
-                COALESCE((
-                    SELECT SUM(pc.montant)
-                    FROM paiements_clients pc
-                    JOIN ventes v ON v.id = pc.vente_id AND v.client_id = c.id AND v.statut = 'validee'
-                    WHERE pc.client_id = c.id AND v.boutique_id = ?
-                ), 0) AS solde_dette
+                COALESCE(vente_credit.total, 0) + COALESCE(di.total, 0) AS total_credit,
+                COALESCE(vente_paye.total, 0) + COALESCE(dip.total, 0) AS total_paye,
+                (COALESCE(vente_credit.total, 0) + COALESCE(di.total, 0))
+                - (COALESCE(vente_paye.total, 0) + COALESCE(dip.total, 0)) AS solde_dette
             FROM clients c
+            LEFT JOIN (
+                SELECT v.client_id, SUM(vp.montant) AS total
+                FROM ventes v
+                JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
+                WHERE v.statut = 'validee' AND v.boutique_id = ?
+                GROUP BY v.client_id
+            ) vente_credit ON vente_credit.client_id = c.id
+            LEFT JOIN (
+                SELECT v.client_id, SUM(pc.montant) AS total
+                FROM paiements_clients pc
+                JOIN ventes v ON v.id = pc.vente_id AND v.statut = 'validee'
+                WHERE v.boutique_id = ?
+                GROUP BY v.client_id
+            ) vente_paye ON vente_paye.client_id = c.id
+            LEFT JOIN (
+                SELECT client_id, SUM(montant) AS total
+                FROM dettes_initiales
+                WHERE boutique_id = ?
+                GROUP BY client_id
+            ) di ON di.client_id = c.id
+            LEFT JOIN (
+                SELECT client_id, SUM(montant) AS total
+                FROM dette_initiale_paiements
+                WHERE boutique_id = ?
+                GROUP BY client_id
+            ) dip ON dip.client_id = c.id
             WHERE c.boutique_id = ?
             HAVING solde_dette > 0
             ORDER BY solde_dette DESC
@@ -244,6 +249,33 @@ class RapportController extends Controller
         $dettesTotal   = 0;
         $stockTotal    = 0;
 
+
+        $boutiqueIds = $boutiques->pluck('id');
+
+        $totalCreditParBoutique = DB::table('ventes as v')
+            ->join('vente_paiements as vp', 'vp.vente_id', '=', 'v.id')
+            ->where('v.statut', 'validee')->where('vp.mode', 'credit')
+            ->whereIn('v.boutique_id', $boutiqueIds)
+            ->select('v.boutique_id', DB::raw('SUM(vp.montant) as total'))
+            ->groupBy('v.boutique_id')->pluck('total', 'boutique_id');
+
+        $totalPayeParBoutique = DB::table('paiements_clients as pc')
+            ->join('ventes as v', 'v.id', '=', 'pc.vente_id')
+            ->where('v.statut', 'validee')
+            ->whereIn('v.boutique_id', $boutiqueIds)
+            ->select('v.boutique_id', DB::raw('SUM(pc.montant) as total'))
+            ->groupBy('v.boutique_id')->pluck('total', 'boutique_id');
+
+        $totalDetteInitialeParBoutique = DB::table('dettes_initiales')
+            ->whereIn('boutique_id', $boutiqueIds)
+            ->select('boutique_id', DB::raw('SUM(montant) as total'))
+            ->groupBy('boutique_id')->pluck('total', 'boutique_id');
+
+        $totalPayeDetteInitialeParBoutique = DB::table('dette_initiale_paiements')
+            ->whereIn('boutique_id', $boutiqueIds)
+            ->select('boutique_id', DB::raw('SUM(montant) as total'))
+            ->groupBy('boutique_id')->pluck('total', 'boutique_id');
+
         foreach ($boutiques as $boutique) {
             $ventes = Vente::where('boutique_id', $boutique->id)
                            ->where('statut', 'validee')
@@ -274,24 +306,10 @@ class RapportController extends Controller
                        ->get()
                        ->sum(fn($v) => $v->stock_actuel * $this->getPrixAchatVariante($v));
 
-            $dettes = DB::select("
-                SELECT
-                    COALESCE((
-                        SELECT SUM(vp.montant)
-                        FROM ventes v
-                        JOIN vente_paiements vp ON vp.vente_id = v.id AND vp.mode = 'credit'
-                        WHERE v.boutique_id = ? AND v.statut = 'validee'
-                    ), 0)
-                    -
-                    COALESCE((
-                        SELECT SUM(pc.montant)
-                        FROM paiements_clients pc
-                        JOIN ventes v ON v.id = pc.vente_id AND v.statut = 'validee'
-                        WHERE v.boutique_id = ?
-                    ), 0) AS solde
-            ", [$boutique->id, $boutique->id]);
-
-            $dette = $dettes[0]->solde ?? 0;
+            $dette = (float) ($totalCreditParBoutique[$boutique->id] ?? 0)
+                - (float) ($totalPayeParBoutique[$boutique->id] ?? 0)
+                + (float) ($totalDetteInitialeParBoutique[$boutique->id] ?? 0)
+                - (float) ($totalPayeDetteInitialeParBoutique[$boutique->id] ?? 0);
 
             $caTotal       += $ca;
             $beneficeTotal += $benefice;

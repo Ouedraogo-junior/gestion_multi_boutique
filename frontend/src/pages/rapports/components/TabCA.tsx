@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { formatMontant } from '@/utils/format'
+import { Info } from 'lucide-react'
 
 type CAData = {
   periode: { debut: string; fin: string }
@@ -47,11 +48,28 @@ export default function TabCA({ data }: { data: CAData }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map(k => (
           <div key={k.label} className={`${k.bg} rounded-xl p-4`}>
-            <p className="text-sm text-gray-500 mb-1">{k.label}</p>
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-sm text-gray-500">{k.label}</p>
+              {k.label === 'Crédit' && (
+                <span
+                  title="Montant vendu à crédit sur la période. Ne diminue pas après un remboursement — c'est le solde dû (onglet Dettes) qui reflète les paiements reçus."
+                  className="cursor-help"
+                >
+                  <Info size={13} className="text-gray-400" />
+                </span>
+              )}
+            </div>
             <p className={`text-xl font-semibold ${k.color}`}>{formatMontant(Number(k.value ?? 0))}</p>
           </div>
         ))}
       </div>
+
+      {Number(parMode.credit ?? 0) > 0 && (
+        <p className="text-xs text-gray-400 -mt-2 flex items-center gap-1">
+          <Info size={12} className="shrink-0" />
+          Le crédit correspond aux ventes réalisées à crédit sur cette période — il n'inclut pas les remboursements reçus depuis. Le montant restant dû est visible dans l'onglet « Dettes ».
+        </p>
+      )}
 
       {/* Métriques secondaires */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

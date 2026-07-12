@@ -35,13 +35,14 @@ const RecuPaiementImprimable = forwardRef<HTMLDivElement, Props>(
         ref={ref}
         id="recu-print"
         style={{
-          width: '148mm',
+          width: '210mm',
+          minHeight: '297mm',
           fontFamily: 'Arial, sans-serif',
           fontSize: '10px',
           color: '#000',
           backgroundColor: '#fff',
           boxSizing: 'border-box',
-          padding: '5mm 6mm',
+          padding: '10mm 12mm',
         }}
       >
         {/* En-tête */}

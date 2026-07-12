@@ -55,6 +55,8 @@ import NouvelApprovisionnementPage from '@/pages/approvisionnements/NouvelApprov
 import ApprovisionnementDetailPage from '@/pages/approvisionnements/ApprovisionnementDetailPage'
 import DettesFournisseursPage from '@/pages/approvisionnements/DettesFournisseursPage'
 
+// Activité
+import ActivitesPage from './pages/activites/ActivitesPage'
 
 
 
@@ -122,22 +124,22 @@ export default function App() {
 
               {/* Routes produits */}
               <Route path="/boutiques/:boutiqueId/produits" element={
-                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
+                <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
                   <ProduitsPage />
                 </ProtectedRoute>
               } />
               <Route path="/boutiques/:boutiqueId/produits/nouveau" element={
-                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
+                <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
                   <ProduitFormPage />
                 </ProtectedRoute>
               } />
               <Route path="/boutiques/:boutiqueId/produits/:produitId" element={
-                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
+                <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
                   <ProduitDetailPage />
                 </ProtectedRoute>
               } />
               <Route path="/boutiques/:boutiqueId/produits/:produitId/modifier" element={
-                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
+                <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
                   <ProduitFormPage />
                 </ProtectedRoute>
               } />
@@ -228,6 +230,13 @@ export default function App() {
               <Route path="/boutiques/:boutiqueId/dettes-fournisseurs" element={
                 <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
                   <DettesFournisseursPage />
+                </ProtectedRoute>
+              } />
+
+              {/* Activités */}
+              <Route path="/boutiques/:boutiqueId/activites" element={
+                <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
+                  <ActivitesPage />
                 </ProtectedRoute>
               } />
 

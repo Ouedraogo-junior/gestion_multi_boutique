@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\FournisseurController;
 use App\Http\Controllers\Api\ApprovisionnementController;
 use App\Http\Controllers\Api\PaiementFournisseurController;
+use App\Http\Controllers\Api\ActiviteController;
+
 
 // Auth publique
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -26,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout',        [AuthController::class, 'logout']);
     Route::get('/auth/me',             [AuthController::class, 'me']);
     Route::put('/auth/password',       [AuthController::class, 'changePassword']);
+    Route::put('/auth/profile',  [AuthController::class, 'updateProfile']);
 });
 
 Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function () {
@@ -100,10 +103,12 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::delete('/boutiques/{boutique_id}/referentiels/{id}', [ReferentielController::class, 'destroy']);
 
         // Ventes
+        Route::get('/boutiques/{boutique_id}/ventes/stats', [VenteController::class, 'stats']);
         Route::get('/boutiques/{boutique_id}/ventes',              [VenteController::class, 'index']);
         Route::post('/boutiques/{boutique_id}/ventes',             [VenteController::class, 'store']);
         Route::get('/boutiques/{boutique_id}/ventes/{id}',         [VenteController::class, 'show']);
         Route::put('/boutiques/{boutique_id}/ventes/{id}',         [VenteController::class, 'update']);
+        Route::delete('/boutiques/{boutique_id}/ventes/{id}',                   [VenteController::class, 'destroy']);
         Route::post('/boutiques/{boutique_id}/ventes/{id}/valider',[VenteController::class, 'valider']);
 
         // Clients
@@ -115,6 +120,8 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::put('/boutiques/{boutique_id}/clients/{id}',                [ClientController::class, 'update']);
         Route::get('/boutiques/{boutique_id}/clients/{id}/dettes',         [ClientController::class, 'dettes']);
         Route::post('/boutiques/{boutique_id}/clients/{id}/paiements',     [ClientController::class, 'storePaiement']);
+        Route::post('/boutiques/{boutique_id}/clients/{id}/dettes-initiales', [ClientController::class, 'storeDetteInitiale']);
+        Route::post('/boutiques/{boutique_id}/clients/{id}/dettes-initiales/{dette_id}/paiements', [ClientController::class, 'storePaiementDetteInitiale']);
         Route::get('/boutiques/{boutique_id}/clients/{id}/avances',        [ClientController::class, 'avances']);
         Route::post('/boutiques/{boutique_id}/clients/{id}/avances',       [ClientController::class, 'storeAvance']);
 
@@ -146,6 +153,9 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::put('/boutiques/{boutique_id}/users/{id}',               [UserController::class, 'update']);
         Route::patch('/boutiques/{boutique_id}/users/{id}/toggle-actif',[UserController::class, 'toggleActif']);
         Route::post('/boutiques/{boutique_id}/users/{id}/reset-password',[UserController::class, 'resetPassword']);
+
+        // Activités
+        Route::get('/boutiques/{boutique_id}/activites', [ActiviteController::class, 'index']);
 
     });
 

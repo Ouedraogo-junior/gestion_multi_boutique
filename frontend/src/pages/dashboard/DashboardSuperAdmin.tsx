@@ -29,10 +29,14 @@ export default function DashboardSuperAdmin() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+
     getDashboardGlobal()
-      .then(r => setData(r.data))
-      .catch(() => toast.error('Erreur chargement dashboard'))
-      .finally(() => setLoading(false))
+      .then(r => { if (!cancelled) setData(r.data) })
+      .catch(() => { if (!cancelled) toast.error('Erreur chargement dashboard') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
   }, [])
 
   if (loading) return <div className="text-center py-16 text-gray-400">Chargement...</div>

@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -121,5 +122,41 @@ class AuthController extends Controller
         $user->update(['password' => $request->new_password]);
 
         return response()->json(['message' => 'Mot de passe modifié']);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'nom'    => 'sometimes|string|max:100',
+            'prenom' => 'sometimes|string|max:100',
+            'pseudo' => ['sometimes', 'string', 'max:50', Rule::unique('users', 'pseudo')->ignore($user->id)],
+        ]);
+
+        $avant = $user->only(['nom', 'prenom', 'pseudo']);
+
+        $user->update($data);
+
+        AuditLog::create([
+            'boutique_id' => $user->boutique_id,
+            'user_id'     => $user->id,
+            'user_pseudo' => $user->pseudo,
+            'user_nom'    => $user->prenom . ' ' . $user->nom,
+            'action'      => 'profil_modifie',
+            'module'      => 'auth',
+            'details'     => ['avant' => $avant, 'apres' => $user->fresh()->only(['nom', 'prenom', 'pseudo'])],
+            'ip_address'  => $request->ip(),
+            'created_at'  => now(),
+        ]);
+
+        return response()->json([
+            'id'          => $user->id,
+            'nom'         => $user->nom,
+            'prenom'      => $user->prenom,
+            'pseudo'      => $user->pseudo,
+            'role'        => $user->role,
+            'boutique_id' => $user->boutique_id,
+        ]);
     }
 }

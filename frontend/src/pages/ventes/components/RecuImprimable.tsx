@@ -22,14 +22,14 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
       ref={ref}
       id="recu-print"
       style={{
-        width: '148mm',
-        minHeight: '210mm',
+        width: '210mm',
+        minHeight: '297mm',
         fontFamily: 'Arial, sans-serif',
         fontSize: '10px',
         color: '#000',
         backgroundColor: '#fff',
         boxSizing: 'border-box',
-        padding: '5mm 6mm',
+        padding: '10mm 12mm',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -173,9 +173,9 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
             {boutique.mention_legale}
           </div>
         )}
-        <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '1mm', fontStyle: 'italic' }}>
+        {/* <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '1mm', fontStyle: 'italic' }}>
           Les marchandises vendues ne sont ni reprises, ni échangées
-        </div>
+        </div> */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4mm', fontStyle: 'italic' }}>
           <span>Le Vendeur</span>
           <span>Le Client</span>

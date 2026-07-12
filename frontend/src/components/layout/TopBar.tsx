@@ -6,6 +6,7 @@ import { useBoutique } from '@/hooks/useBoutique'
 import { ROLES } from '@/utils/constants'
 import { getBoutiques } from '@/api/boutiques'
 import type { Boutique } from '@/contexts/BoutiqueContext'
+import ProfileEditModal from './ProfileEditModal'
 
 interface TopBarProps {
   onMenuClick: () => void
@@ -19,6 +20,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
 
   const [boutiques,    setBoutiques]    = useState<Boutique[]>([])
   const [dropdownOpen, setDropdownOpen] = useState(false)
+
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   useEffect(() => {
     if (!isSuperAdmin) return
@@ -84,7 +87,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
       </div>
 
       {/* User info */}
-      <div className="flex items-center gap-3">
+      <button
+        onClick={() => setProfileModalOpen(true)}
+        className="flex items-center gap-3 hover:bg-[#F4F6F5] rounded-lg px-2 py-1.5 transition-colors"
+      >
         <div className="text-right hidden sm:block">
           <p className="text-sm font-medium text-gray-900">{user?.prenom} {user?.nom}</p>
           <p className="text-xs text-gray-500">{user?.pseudo}</p>
@@ -94,7 +100,8 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
             {user?.prenom?.[0]}{user?.nom?.[0]}
           </span>
         </div>
-      </div>
+      </button>
+      <ProfileEditModal open={profileModalOpen} onOpenChange={setProfileModalOpen} />
     </header>
   )
 }

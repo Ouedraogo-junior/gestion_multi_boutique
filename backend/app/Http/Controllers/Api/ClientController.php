@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Vente;
 use App\Models\AvanceClient;
 use App\Models\VentePaiement;
+use App\Models\DetteInitiale;
+use App\Models\DetteInitialePaiement;
 
 class ClientController extends Controller
 {
@@ -85,7 +87,7 @@ class ClientController extends Controller
     {
         $client = Client::where('boutique_id', $boutique_id)->findOrFail($id);
 
-        $dettes = DB::select("
+        $dettesVentes = DB::select("
             SELECT
                 vente_id, numero_facture, date_validation, total_net,
                 total_credit, total_paye,
@@ -104,12 +106,25 @@ class ClientController extends Controller
             HAVING solde_restant > 0
         ", [$id, $boutique_id]);
 
-        $totalDette = collect($dettes)->sum('solde_restant');
+        $dettesInitiales = DB::select("
+            SELECT
+                di.id AS dette_initiale_id, di.date, di.montant AS montant_initial, di.note,
+                COALESCE(SUM(dip.montant), 0) AS total_paye,
+                di.montant - COALESCE(SUM(dip.montant), 0) AS solde_restant
+            FROM dettes_initiales di
+            LEFT JOIN dette_initiale_paiements dip ON dip.dette_initiale_id = di.id
+            WHERE di.client_id = ? AND di.boutique_id = ?
+            GROUP BY di.id, di.date, di.montant, di.note
+            HAVING solde_restant > 0
+        ", [$id, $boutique_id]);
+
+        $totalDette = collect($dettesVentes)->sum('solde_restant') + collect($dettesInitiales)->sum('solde_restant');
 
         return response()->json([
-            'client'      => $client,
-            'total_dette' => $totalDette,
-            'dettes'      => $dettes,
+            'client'           => $client,
+            'total_dette'      => $totalDette,
+            'dettes'           => $dettesVentes,
+            'dettes_initiales' => $dettesInitiales,
         ]);
     }
 
@@ -170,45 +185,80 @@ class ClientController extends Controller
 
     public function paiements(int $boutique_id, int $id): JsonResponse
     {
-        $client = Client::where('boutique_id', $boutique_id)->findOrFail($id);
+        Client::where('boutique_id', $boutique_id)->findOrFail($id);
 
-        $paiements = PaiementClient::where('client_id', $id)
-            ->where('boutique_id', $boutique_id)
-            ->with('vente:id,numero_facture,total_net')
-            ->orderByDesc('created_at')
+        $paiementsVentes = DB::table('paiements_clients as pc')
+            ->join('ventes as v', 'v.id', '=', 'pc.vente_id')
+            ->where('pc.client_id', $id)
+            ->where('pc.boutique_id', $boutique_id)
+            ->select([
+                'pc.id', 'pc.montant', 'pc.mode', 'pc.note', 'pc.created_at as date',
+                DB::raw("'vente' as source"),
+                'pc.vente_id',
+                DB::raw('NULL as dette_initiale_id'),
+                'v.numero_facture',
+                'v.total_net',
+            ]);
+
+        $paiementsDettesInitiales = DB::table('dette_initiale_paiements as dip')
+            ->where('dip.client_id', $id)
+            ->where('dip.boutique_id', $boutique_id)
+            ->select([
+                'dip.id', 'dip.montant', 'dip.mode', 'dip.note', 'dip.created_at as date',
+                DB::raw("'dette_initiale' as source"),
+                DB::raw('NULL as vente_id'),
+                'dip.dette_initiale_id',
+                DB::raw('NULL as numero_facture'),
+                DB::raw('NULL as total_net'),
+            ]);
+
+        $rows = $paiementsVentes->unionAll($paiementsDettesInitiales)
+            ->orderByDesc('date')
+            ->limit(200)
             ->get();
 
-        $venteIds = $paiements->pluck('vente_id')->unique()->values();
+        $venteIds = $rows->where('source', 'vente')->pluck('vente_id')->filter()->unique()->values();
+        $detteIds = $rows->where('source', 'dette_initiale')->pluck('dette_initiale_id')->filter()->unique()->values();
 
-        // Crédit accordé, agrégé une seule fois pour toutes les ventes concernées
-        $creditParVente = VentePaiement::whereIn('vente_id', $venteIds)
-            ->where('mode', 'credit')
-            ->groupBy('vente_id')
-            ->selectRaw('vente_id, SUM(montant) as total')
-            ->pluck('total', 'vente_id');
-
-        // Déjà payé, agrégé une seule fois
+        $creditParVente = VentePaiement::whereIn('vente_id', $venteIds)->where('mode', 'credit')
+            ->groupBy('vente_id')->selectRaw('vente_id, SUM(montant) as total')->pluck('total', 'vente_id');
         $payeParVente = PaiementClient::whereIn('vente_id', $venteIds)
-            ->groupBy('vente_id')
-            ->selectRaw('vente_id, SUM(montant) as total')
-            ->pluck('total', 'vente_id');
+            ->groupBy('vente_id')->selectRaw('vente_id, SUM(montant) as total')->pluck('total', 'vente_id');
 
-        $result = $paiements->map(function ($p) use ($creditParVente, $payeParVente) {
-            $solde = (float) ($creditParVente[$p->vente_id] ?? 0) - (float) ($payeParVente[$p->vente_id] ?? 0);
-            return [
+        $montantDette = DetteInitiale::whereIn('id', $detteIds)->pluck('montant', 'id');
+        $payeParDette = DetteInitialePaiement::whereIn('dette_initiale_id', $detteIds)
+            ->groupBy('dette_initiale_id')->selectRaw('dette_initiale_id, SUM(montant) as total')->pluck('total', 'dette_initiale_id');
+
+        $result = $rows->map(function ($p) use ($creditParVente, $payeParVente, $montantDette, $payeParDette) {
+            $base = [
                 'id'      => $p->id,
-                'montant' => $p->montant,
+                'montant' => (float) $p->montant,
                 'mode'    => $p->mode,
-                'date'    => $p->created_at,
-                'vente'   => [
-                    'numero_facture' => $p->vente->numero_facture,
-                    'total_net'      => $p->vente->total_net,
-                    'solde_restant'  => $solde,
-                ],
+                'date'    => $p->date,
+                'note'    => $p->note,
+                'source'  => $p->source,
+            ];
+
+            if ($p->source === 'vente') {
+                $solde = (float) ($creditParVente[$p->vente_id] ?? 0) - (float) ($payeParVente[$p->vente_id] ?? 0);
+                return $base + [
+                    'vente_id' => $p->vente_id,
+                    'vente'    => [
+                        'numero_facture' => $p->numero_facture,
+                        'total_net'      => (float) $p->total_net,
+                        'solde_restant'  => $solde,
+                    ],
+                ];
+            }
+
+            $solde = (float) ($montantDette[$p->dette_initiale_id] ?? 0) - (float) ($payeParDette[$p->dette_initiale_id] ?? 0);
+            return $base + [
+                'dette_initiale_id' => $p->dette_initiale_id,
+                'dette_initiale'    => ['solde_restant' => $solde],
             ];
         });
 
-        return response()->json($result);
+        return response()->json($result->values());
     }
 
    public function stats(int $boutique_id): JsonResponse
@@ -240,20 +290,35 @@ class ClientController extends Controller
     {
         $clientIds = $request->input('client_ids', []);
 
-        $paiements = DB::table('paiements_clients as pc')
+        $dernierVente = DB::table('paiements_clients as pc')
             ->join('ventes as v', 'v.id', '=', 'pc.vente_id')
-            ->select('pc.*', 'v.numero_facture', 'v.total_net')
+            ->select('pc.id', 'pc.client_id', 'pc.montant', 'pc.mode', 'pc.created_at as date',
+                    'v.numero_facture', 'v.total_net', DB::raw("'vente' as source"))
             ->where('pc.boutique_id', $boutique_id)
             ->whereIn('pc.id', function ($sub) use ($boutique_id, $clientIds) {
-                $sub->select(DB::raw('MAX(id)'))
-                    ->from('paiements_clients')
+                $sub->select(DB::raw('MAX(id)'))->from('paiements_clients')
                     ->where('boutique_id', $boutique_id)
                     ->when(!empty($clientIds), fn ($q) => $q->whereIn('client_id', $clientIds))
                     ->groupBy('client_id');
             })
             ->get();
 
-        $map = $paiements->keyBy('client_id');
+        $dernierDetteInitiale = DB::table('dette_initiale_paiements as dip')
+            ->select('dip.id', 'dip.client_id', 'dip.montant', 'dip.mode', 'dip.created_at as date',
+                    DB::raw('NULL as numero_facture'), DB::raw('NULL as total_net'), DB::raw("'dette_initiale' as source"))
+            ->where('dip.boutique_id', $boutique_id)
+            ->whereIn('dip.id', function ($sub) use ($boutique_id, $clientIds) {
+                $sub->select(DB::raw('MAX(id)'))->from('dette_initiale_paiements')
+                    ->where('boutique_id', $boutique_id)
+                    ->when(!empty($clientIds), fn ($q) => $q->whereIn('client_id', $clientIds))
+                    ->groupBy('client_id');
+            })
+            ->get();
+
+        $map = $dernierVente->concat($dernierDetteInitiale)
+            ->groupBy('client_id')
+            ->map(fn ($group) => $group->sortByDesc('date')->first());
+
         return response()->json($map);
     }
 
@@ -316,5 +381,90 @@ class ClientController extends Controller
             'solde_avance' => $client->solde_avance,
             'historique'   => $historique,
         ]);
+    }
+
+    public function storeDetteInitiale(Request $request, int $boutique_id, int $id): JsonResponse
+    {
+        $client = Client::where('boutique_id', $boutique_id)->findOrFail($id);
+
+        $data = $request->validate([
+            'montant' => 'required|numeric|min:1',
+            'date'    => 'required|date',
+            'note'    => 'nullable|string',
+        ]);
+
+        $dette = DetteInitiale::create([
+            'boutique_id' => $boutique_id,
+            'client_id'   => $client->id,
+            'montant'     => $data['montant'],
+            'date'        => $data['date'],
+            'note'        => $data['note'] ?? null,
+            'user_id'     => auth()->id(),
+            'created_at'  => now(),
+        ]);
+
+        $request->auditAction  = 'dette_initiale_ajoutee';
+        $request->auditModule  = 'clients';
+        $request->auditDetails = ['client_id' => $client->id, 'montant' => $data['montant']];
+
+        return response()->json($dette, 201);
+    }
+
+    public function storePaiementDetteInitiale(Request $request, int $boutique_id, int $id, int $dette_id): JsonResponse
+    {
+        Client::where('boutique_id', $boutique_id)->findOrFail($id);
+
+        $data = $request->validate([
+            'montant'      => 'required|numeric|min:1',
+            'mode'         => 'required|in:especes,mobile_money',
+            'operateur_id' => 'nullable|exists:referentiels,id',
+            'note'         => 'nullable|string',
+            'date'         => 'required|date',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $dette = DetteInitiale::where('boutique_id', $boutique_id)
+                                ->where('client_id', $id)
+                                ->lockForUpdate()
+                                ->findOrFail($dette_id);
+
+            $totalPaye    = DetteInitialePaiement::where('dette_initiale_id', $dette->id)->sum('montant');
+            $soldeRestant = $dette->montant - $totalPaye;
+
+            if ($data['montant'] > $soldeRestant) {
+                DB::rollBack();
+                return response()->json([
+                    'message'       => 'Montant supérieur au solde restant',
+                    'solde_restant' => $soldeRestant,
+                ], 422);
+            }
+
+            $paiement = DetteInitialePaiement::create([
+                'boutique_id'       => $boutique_id,
+                'dette_initiale_id' => $dette->id,
+                'client_id'         => $id,
+                'montant'           => $data['montant'],
+                'mode'              => $data['mode'],
+                'operateur_id'      => $data['operateur_id'] ?? null,
+                'user_id'           => auth()->id(),
+                'note'              => $data['note'] ?? null,
+                'date'              => $data['date'],
+                'created_at'        => now(),
+            ]);
+
+            DB::commit();
+
+            $request->auditAction  = 'dette_initiale_encaissee';
+            $request->auditModule  = 'clients';
+            $request->auditDetails = ['client_id' => $id, 'dette_initiale_id' => $dette->id, 'montant' => $data['montant']];
+
+            return response()->json($paiement, 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur : ' . $e->getMessage()], 500);
+        }
     }
 }

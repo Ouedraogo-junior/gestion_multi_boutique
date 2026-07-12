@@ -68,26 +68,35 @@ const loadStats = async () => {
     try {
       const resPaiements = await getDerniersPaiements(id, clientIds)
       const map: Record<number, PaiementHistorique[]> = {}
+
       Object.entries(resPaiements.data).forEach(([clientId, p]: [string, unknown]) => {
         const pai = p as Record<string, unknown>
+        const source = (pai.source as 'vente' | 'dette_initiale') ?? 'vente'
+
         map[Number(clientId)] = [{
-          id:       pai.id       as number,
-          montant:  pai.montant  as number,
-          mode:     pai.mode     as 'especes' | 'mobile_money',
-          date:     pai.date     as string,
-          vente_id: pai.vente_id as number,
-          vente: {
-            numero_facture: pai.numero_facture as string,
-            total_net:      pai.total_net      as number,
-            solde_restant:  0,
-          },
+          id:      pai.id      as number,
+          montant: pai.montant as number,
+          mode:    pai.mode    as 'especes' | 'mobile_money',
+          date:    pai.date    as string,
+          source,
+          ...(source === 'vente'
+            ? {
+                vente_id: pai.vente_id as number,
+                vente: {
+                  numero_facture: pai.numero_facture as string,
+                  total_net:      pai.total_net      as number,
+                  solde_restant:  0,
+                },
+              }
+            : {}),
         }]
       })
+
       setHistoriquesPaiements(map)
     } catch {
       // silencieux
     }
-  }
+}
 
   const loadClients = async (q = '') => {
     setLoading(true)

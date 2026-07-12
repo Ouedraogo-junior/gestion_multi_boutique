@@ -55,6 +55,8 @@ export interface Vente {
   note: string | null
   date_validation: string | null
   created_at: string
+  credit_accorde_sum?: number | null
+  total_rembourse_sum?: number | null
   details?: VenteDetail[]
   paiements?: {
     id: number
@@ -65,6 +67,23 @@ export interface Vente {
   client?: { nom: string; prenom: string | null; telephone?: string | null }
   vendeur?: { nom: string; prenom: string; pseudo: string }
 }
+
+export interface VenteStats {
+  periode: { debut: string | null; fin: string | null }
+  ca_total: number
+  total_ventes_validees: number
+  sans_credit: { count: number; montant: number }
+  avec_credit: {
+    count: number
+    credit_accorde: number
+    regle_immediat_sur_ventes: number
+    reste_du: number
+  }
+  brouillons: number
+}
+
+export const getVentesStats = (boutiqueId: number, params?: { debut?: string; fin?: string }) =>
+  api.get<VenteStats>(`/boutiques/${boutiqueId}/ventes/stats`, { params })
 
 export const getVentes    = (boutiqueId: number, params?: Record<string, unknown>) =>
   api.get(`/boutiques/${boutiqueId}/ventes`, { params })
@@ -83,3 +102,6 @@ export const validerVente = (boutiqueId: number, id: number, paiements: Paiement
 
 export const annulerVente = (boutiqueId: number, id: number) =>
   api.post(`/boutiques/${boutiqueId}/ventes/${id}/annuler`)
+
+export const supprimerVente = (boutiqueId: number, id: number) =>
+  api.delete(`/boutiques/${boutiqueId}/ventes/${id}`)

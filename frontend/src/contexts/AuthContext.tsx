@@ -23,11 +23,13 @@ interface AuthContextType extends AuthState {
   ready: boolean
   login: (pseudo: string, password: string) => Promise<User>
   logout: () => Promise<void>
+  updateUser: (user: User) => void
 }
 
 type AuthAction =
   | { type: 'LOGIN'; token: string; user: User }
   | { type: 'LOGOUT' }
+  | { type: 'UPDATE_USER'; user: User }
 
 const initialState: AuthState = {
   token: localStorage.getItem('token'),
@@ -36,9 +38,10 @@ const initialState: AuthState = {
 
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
-    case 'LOGIN':  return { token: action.token, user: action.user }
-    case 'LOGOUT': return { token: null, user: null }
-    default:       return state
+    case 'LOGIN':       return { token: action.token, user: action.user }
+    case 'LOGOUT':       return { token: null, user: null }
+    case 'UPDATE_USER': return { ...state, user: action.user }
+    default:             return state
   }
 }
 
@@ -69,6 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.user
   }
 
+  const updateUser = (user: User): void => {
+    localStorage.setItem('user', JSON.stringify(user))
+    dispatch({ type: 'UPDATE_USER', user })
+  }
+
   const logout = async (): Promise<void> => {
     try { await api.post('/auth/logout') } catch (_) {}
     dispatch({ type: 'LOGOUT' })
@@ -76,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, ready, login, logout }}>
+    <AuthContext.Provider value={{ ...state, ready, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

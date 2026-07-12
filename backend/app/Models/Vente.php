@@ -49,6 +49,11 @@ class Vente extends Model
         return $this->hasMany(VentePaiement::class);
     }
 
+    public function paiementsClients(): HasMany
+    {
+        return $this->hasMany(PaiementClient::class);
+    }
+
     public static function genererNumeroFacture(int $boutiqueId): string
     {
         $annee = now()->year;

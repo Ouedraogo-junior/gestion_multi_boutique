@@ -4,10 +4,11 @@ import { ROLES } from '@/utils/constants'
 import SectionBoutique from './components/SectionBoutique'
 import SectionPassword from './components/SectionPassword'
 import SectionReferentiels from './components/SectionReferentiels'
+import SectionProfil from './components/SectionProfil'
 
 export default function ParametresPage() {
   const { boutiqueId } = useParams()
-  console.log('boutiqueId from params:', boutiqueId)
+  // console.log('boutiqueId from params:', boutiqueId)
   const { user } = useAuth()
 
   const id = Number(boutiqueId)
@@ -28,6 +29,7 @@ export default function ParametresPage() {
       </div>
 
       {user?.role !== ROLES.VENDEUR && <SectionBoutique boutiqueId={id} />}
+      <SectionProfil />
       <SectionPassword />
       {user?.role !== ROLES.VENDEUR && <SectionReferentiels boutiqueId={id} />}
     </div>
