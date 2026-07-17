@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CreditCard, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { formatMontant } from '@/utils/format'
+import { formatMontant, formatDate } from '@/utils/format'
 import PaiementDialog from '@/pages/clients/components/PaiementDialog'
 import type { Client } from '@/api/clients'
 
@@ -15,15 +15,37 @@ type DetteClient = {
   solde_dette: number
 }
 
+type PaiementPeriode = {
+  id: number
+  client_id: number
+  nom: string
+  prenom: string | null
+  montant: number
+  mode: 'especes' | 'mobile_money'
+  date: string
+  source: 'vente' | 'dette_initiale'
+  numero_facture: string | null
+}
+
 type DettesData = {
   boutique_id: number
   total_dettes: number
   clients: DetteClient[]
+  periode?: { debut: string; fin: string }
+  total_paiements_periode?: number
+  paiements_periode?: PaiementPeriode[]
+}
+
+const MODE_LABELS: Record<string, string> = {
+  especes:      'Espèces',
+  mobile_money: 'Mobile Money',
 }
 
 export default function TabDettes({ data }: { data: DettesData }) {
   const clients = data.clients ?? []
   const total   = Number(data.total_dettes ?? 0)
+  const paiementsPeriode = data.paiements_periode ?? []
+  const totalPaiementsPeriode = Number(data.total_paiements_periode ?? 0)
 
   const [search, setSearch]               = useState('')
   const [clientPaiement, setClientPaiement] = useState<Client | null>(null)
@@ -52,7 +74,6 @@ export default function TabDettes({ data }: { data: DettesData }) {
       total_dette: Number(c.solde_dette),
     })
   }
-  
 
   return (
     <div className="space-y-6">
@@ -60,7 +81,7 @@ export default function TabDettes({ data }: { data: DettesData }) {
         <p className="text-sm text-gray-500 mb-1">Total créances clients</p>
         <p className="text-3xl text-[#E8314A]">{formatMontant(total)}</p>
         <p className="text-xs text-gray-400 mt-1">
-          {clients.length} client{clients.length > 1 ? 's' : ''} avec dette
+          {clients.length} client{clients.length > 1 ? 's' : ''} avec dette — solde actuel, indépendant de la période choisie
         </p>
       </div>
 
@@ -119,6 +140,62 @@ export default function TabDettes({ data }: { data: DettesData }) {
                     </tr>
                   ))
                 )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Historique des paiements reçus sur la période */}
+      <div className="bg-[#D4F0E2] rounded-xl p-6">
+        <p className="text-sm text-gray-500 mb-1">Paiements reçus sur la période</p>
+        <p className="text-3xl text-[#1A7A4A]">{formatMontant(totalPaiementsPeriode)}</p>
+        {data.periode && (
+          <p className="text-xs text-gray-400 mt-1">
+            Du {formatDate(data.periode.debut)} au {formatDate(data.periode.fin)}
+          </p>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-medium text-gray-700">Historique des paiements</h3>
+        </div>
+        {paiementsPeriode.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">
+            Aucun paiement reçu sur cette période
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Date</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Client</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Origine</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Mode</th>
+                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium">Montant</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paiementsPeriode.map(p => (
+                  <tr key={`${p.source}-${p.id}`} className="border-b border-gray-50 hover:bg-[#F4F6F5] transition-colors">
+                    <td className="py-2.5 px-4 text-sm text-gray-600">{formatDate(p.date)}</td>
+                    <td className="py-2.5 px-4 text-sm font-medium text-[#1C1C1C]">
+                      {[p.prenom, p.nom].filter(Boolean).join(' ')}
+                    </td>
+                    <td className="py-2.5 px-4 text-sm text-gray-500">
+                      {p.source === 'vente'
+                        ? <span className="font-mono text-xs">{p.numero_facture}</span>
+                        : <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-[#E8314A]">Dette antérieure</span>
+                      }
+                    </td>
+                    <td className="py-2.5 px-4 text-sm text-gray-500">{MODE_LABELS[p.mode] ?? p.mode}</td>
+                    <td className="py-2.5 px-4 text-sm font-medium text-[#1A7A4A] text-right">
+                      {formatMontant(Number(p.montant))}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

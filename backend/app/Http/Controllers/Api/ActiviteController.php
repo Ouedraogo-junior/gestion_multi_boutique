@@ -90,10 +90,50 @@ class ActiviteController extends Controller
                 DB::raw('NULL as note'),
             ]);
 
+        
+        // 5. Avances — dépôts (argent réel reçu, pas encore lié à une vente)
+        $avancesDepotsQuery = DB::table('avances_clients as ac')
+            ->leftJoin('clients as c', 'c.id', '=', 'ac.client_id')
+            ->where('ac.boutique_id', $boutique_id)
+            ->where('ac.type', 'depot')
+            ->whereBetween('ac.created_at', [$debut, $fin])
+            ->select([
+                DB::raw("'avance_depot' as type"),
+                'ac.id',
+                'ac.created_at as date',
+                DB::raw('NULL as numero_facture'),
+                'ac.montant',
+                'ac.client_id',
+                DB::raw("TRIM(CONCAT(COALESCE(c.prenom, ''), ' ', COALESCE(c.nom, ''))) as client_nom"),
+                'ac.mode_depot as mode',
+                'ac.note',
+            ]);
+
+        // 6. Avances — utilisations (consommées sur une vente)
+        $avancesUtilisationsQuery = DB::table('avances_clients as ac')
+            ->leftJoin('clients as c', 'c.id', '=', 'ac.client_id')
+            ->leftJoin('ventes as v', 'v.id', '=', 'ac.vente_id')
+            ->where('ac.boutique_id', $boutique_id)
+            ->where('ac.type', 'utilisation')
+            ->whereBetween('ac.created_at', [$debut, $fin])
+            ->select([
+                DB::raw("'avance_utilisation' as type"),
+                'ac.id',
+                'ac.created_at as date',
+                'v.numero_facture',
+                'ac.montant',
+                'ac.client_id',
+                DB::raw("TRIM(CONCAT(COALESCE(c.prenom, ''), ' ', COALESCE(c.nom, ''))) as client_nom"),
+                DB::raw('NULL as mode'),
+                DB::raw('NULL as note'),
+            ]);
+
         $page = $ventesQuery
             ->unionAll($dettesInitialesQuery)
             ->unionAll($paiementsVenteQuery)
             ->unionAll($paiementsDetteInitialeQuery)
+            ->unionAll($avancesDepotsQuery)
+            ->unionAll($avancesUtilisationsQuery)
             ->orderByDesc('date')
             ->paginate($data['per_page'] ?? 25);
 

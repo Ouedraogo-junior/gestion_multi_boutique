@@ -58,6 +58,11 @@ import DettesFournisseursPage from '@/pages/approvisionnements/DettesFournisseur
 // Activité
 import ActivitesPage from './pages/activites/ActivitesPage'
 
+// Transferts inter-boutiques
+import TransfertsBoutiquesPage from './pages/transferts-boutiques/TransfertsBoutiquesPage'
+import NouveauTransfertPage from './pages/transferts-boutiques/NouveauTransfertPage'
+import TransfertBoutiqueDetailPage from './pages/transferts-boutiques/TransfertBoutiqueDetailPage'
+
 
 
 import { ROLES } from './utils/constants'
@@ -237,6 +242,23 @@ export default function App() {
               <Route path="/boutiques/:boutiqueId/activites" element={
                 <ProtectedRoute roles={[ROLES.SUPER_ADMIN, ROLES.ADMIN_BOUTIQUE, ROLES.VENDEUR]}>
                   <ActivitesPage />
+                </ProtectedRoute>
+              } />
+
+              {/* Transferts inter-boutiques — nouveau AVANT /:id */}
+              <Route path="/boutiques/:boutiqueId/transferts-boutiques" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <TransfertsBoutiquesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/boutiques/:boutiqueId/transferts-boutiques/nouveau" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <NouveauTransfertPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/boutiques/:boutiqueId/transferts-boutiques/:id" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
+                  <TransfertBoutiqueDetailPage />
                 </ProtectedRoute>
               } />
 

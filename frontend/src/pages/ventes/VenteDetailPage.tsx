@@ -103,14 +103,14 @@ export default function VenteDetailPage() {
         </div>
 
         <div className="flex gap-2">
-          {vente.statut === 'validee' && boutiqueActive && (
+          {(vente.statut === 'validee' || vente.statut === 'brouillon') && boutiqueActive && (
             <Button
               onClick={() => handlePrint()}
               variant="outline"
               className="border-gray-200"
             >
               <Printer size={16} className="mr-2" />
-              Imprimer
+              {vente.statut === 'brouillon' ? 'Imprimer le devis' : 'Imprimer'}
             </Button>
           )}
           {isAdmin && vente.statut === 'validee' && (
@@ -253,7 +253,7 @@ export default function VenteDetailPage() {
       </div>
 
       {/* Reçu caché pour impression */}
-      {vente.statut === 'validee' && boutiqueActive && (
+      {(vente.statut === 'validee' || vente.statut === 'brouillon') && boutiqueActive && (
         <div className="hidden">
           <RecuImprimable ref={recuRef} vente={vente} boutique={boutiqueActive} logoBase64={boutiqueActive.logo_base64 ?? null} />
         </div>

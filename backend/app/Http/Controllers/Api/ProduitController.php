@@ -188,6 +188,19 @@ class ProduitController extends Controller
         try {
             $produit->update(collect($data)->except('variantes')->toArray());
 
+            // Produit SANS variantes : la variante par défaut doit suivre le prix du produit,
+            // sinon elle garde l'ancien prix — c'est elle qui est réellement utilisée en vente.
+            if (!$produit->has_variantes) {
+                $varianteDefaut = $produit->variantes()->where('est_defaut', true)->first();
+                if ($varianteDefaut) {
+                    $varianteDefaut->update([
+                        'prix_vente'   => $data['prix_vente']   ?? $varianteDefaut->prix_vente,
+                        'prix_achat'   => $data['prix_achat']   ?? $varianteDefaut->prix_achat,
+                        'seuil_alerte' => $data['seuil_alerte'] ?? $varianteDefaut->seuil_alerte,
+                    ]);
+                }
+            }
+
             if (!empty($data['variantes'])) {
                 foreach ($data['variantes'] as $v) {
                     $variante = Variante::where('boutique_id', $boutique_id)
@@ -217,6 +230,65 @@ class ProduitController extends Controller
             $request->auditDetails = ['avant' => $avant, 'apres' => $produit->fresh()->toArray()];
 
             return response()->json($produit->fresh()->load('variantes'));
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur : ' . $e->getMessage()], 500);
+        }
+    }
+
+    // Correction manuelle du stock — remplace la valeur actuelle par une valeur exacte,
+    // contrairement à entreeStock() qui ne fait qu'additionner.
+    public function ajusterStock(Request $request, int $boutique_id): JsonResponse
+    {
+        $data = $request->validate([
+            'variante_id'   => 'required|exists:variantes,id',
+            'nouveau_stock' => 'required|integer|min:0',
+            'note'          => 'required|string|min:3',
+        ]);
+
+        $variante = Variante::where('boutique_id', $boutique_id)->findOrFail($data['variante_id']);
+
+        $ancienStock = $variante->stock_actuel;
+        $ecart       = $data['nouveau_stock'] - $ancienStock;
+
+        if ($ecart === 0) {
+            return response()->json(['message' => 'Le nouveau stock est identique au stock actuel'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $variante->update(['stock_actuel' => $data['nouveau_stock']]);
+
+            MouvementStock::create([
+                'boutique_id' => $boutique_id,
+                'variante_id' => $variante->id,
+                'type'        => 'ajustement',
+                'quantite'    => abs($ecart),
+                'source'      => 'ajustement_manuel',
+                'user_id'     => auth()->id(),
+                'note'        => $data['note'] . ' (ancien : ' . $ancienStock . ', nouveau : ' . $data['nouveau_stock'] . ')',
+                'created_at'  => now(),
+            ]);
+
+            DB::commit();
+
+            $request->auditAction  = 'stock_ajuste';
+            $request->auditModule  = 'stock';
+            $request->auditDetails = [
+                'variante_id'  => $variante->id,
+                'ancien_stock' => $ancienStock,
+                'nouveau_stock'=> $data['nouveau_stock'],
+                'ecart'        => $ecart,
+                'note'         => $data['note'],
+            ];
+
+            return response()->json([
+                'variante_id'   => $variante->id,
+                'ancien_stock'  => $ancienStock,
+                'stock_actuel'  => $variante->fresh()->stock_actuel,
+                'ecart'         => $ecart,
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();

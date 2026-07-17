@@ -45,6 +45,19 @@ export interface MouvementStock {
   user?: { nom: string; prenom: string }
 }
 
+export interface AjustementStockPayload {
+  variante_id: number
+  nouveau_stock: number
+  note: string
+}
+
+export interface AjustementStockResponse {
+  variante_id: number
+  ancien_stock: number
+  stock_actuel: number
+  ecart: number
+}
+
 export const getProduits    = (boutiqueId: number, params?: Record<string, unknown>) =>
   api.get(`/boutiques/${boutiqueId}/produits`, { params })
 
@@ -56,6 +69,9 @@ export const createProduit  = (boutiqueId: number, data: unknown) =>
 
 export const updateProduit  = (boutiqueId: number, id: number, data: unknown) =>
   api.put(`/boutiques/${boutiqueId}/produits/${id}`, data)
+
+export const ajusterStock = (boutiqueId: number, data: AjustementStockPayload) =>
+  api.post<AjustementStockResponse>(`/boutiques/${boutiqueId}/stock/ajustement`, data)
 
 export const toggleProduit  = (boutiqueId: number, id: number) =>
   api.patch(`/boutiques/${boutiqueId}/produits/${id}/toggle-actif`)

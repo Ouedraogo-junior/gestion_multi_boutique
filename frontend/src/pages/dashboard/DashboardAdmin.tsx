@@ -14,6 +14,7 @@ type DashboardData = {
     recouvrement: number
     encaisse_reel: number
     regle_sur_ventes: number
+    avances_deposees: number
     sans_credit: { count: number; montant: number }
     partielles: { count: number; montant_regle: number; montant_credit: number }
     entierement_credit: { count: number; montant: number }
@@ -30,6 +31,10 @@ type DashboardData = {
     depenses_aujourdhui: number
     retours_aujourdhui:  number
     benefice_aujourdhui: number
+    creances_transferts_boutiques: number
+    encaisse_transferts_boutiques_aujourdhui: number
+    regle_avance_transferts_aujourdhui: number
+    solde_avances_boutiques: number
   }
   dernieres_ventes: {
     id: number
@@ -62,6 +67,9 @@ export default function DashboardAdmin() {
   const admin = data.admin ?? {
     depenses_mois: 0, retours_mois: 0, benefice_mois: 0, cout_achat_mois: 0,
     depenses_aujourdhui: 0, retours_aujourdhui: 0, benefice_aujourdhui: 0,
+    creances_transferts_boutiques: 0,
+    encaisse_transferts_boutiques_aujourdhui: 0,
+    regle_avance_transferts_aujourdhui:0, solde_avances_boutiques: 0,
   }
   // const benefice    = Number(admin.benefice_mois ?? 0)
 
@@ -85,7 +93,7 @@ export default function DashboardAdmin() {
         </div>
 
         {/* Décomposition de l'argent réellement rentré */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <p className="text-sm text-gray-500 mb-1">Réglé comptant sur les ventes du jour</p>
             <p className="text-xl font-semibold text-[#1A7A4A]">
@@ -100,6 +108,34 @@ export default function DashboardAdmin() {
             </p>
             <p className="text-xs text-gray-400 mt-1">dettes encaissées, peu importe leur origine</p>
           </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-sm text-gray-500">+ Avances déposées</p>
+              <span title="Argent reçu aujourd'hui comme avance client, pas encore lié à un achat." className="cursor-help">
+                <Info size={13} className="text-gray-400" />
+              </span>
+            </div>
+            <p className="text-xl font-semibold text-[#1A7A4A]">
+              {formatMontant(Number(data.aujourd_hui?.avances_deposees ?? 0))}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">non lié à une vente pour l'instant</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <div className="flex items-center gap-1 mb-1">
+              <p className="text-sm text-gray-500">Transferts inter-boutiques (à part)</p>
+              <span
+                title="Argent reçu aujourd'hui d'une autre boutique pour de la marchandise cédée. Cet argent est bien dans la caisse, mais n'est volontairement PAS inclus dans le total ci-dessous, ni dans le CA — c'est un mouvement interne entre boutiques, pas une vente."
+                className="cursor-help"
+              >
+                <Info size={13} className="text-gray-400" />
+              </span>
+              
+            </div>
+            <p className="text-xl font-semibold text-[#29ABE2]">
+              {formatMontant(Number(admin.encaisse_transferts_boutiques_aujourdhui ?? 0))}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">non inclus dans le total ci-dessous</p>
+          </div>
         </div>
 
         {/* Argent réellement rentré aujourd'hui — mis en avant */}
@@ -107,7 +143,7 @@ export default function DashboardAdmin() {
           <div className="flex items-center gap-1 mb-1">
             <p className="text-sm text-gray-600 font-medium">Argent réellement rentré aujourd'hui</p>
             <span
-              title="Paiements en espèces/mobile money reçus aujourd'hui, sur les ventes du jour ET sur des dettes antérieures encaissées aujourd'hui. C'est le chiffre le plus proche de ce qui est physiquement en caisse."
+              title="Paiements en espèces/mobile money reçus aujourd'hui sur les ventes du jour, recouvrements de dettes (peu importe leur origine), et dépôts d'avance client. C'est le chiffre le plus proche de ce qui est physiquement en caisse."
               className="cursor-help"
             >
               <Info size={13} className="text-gray-400" />
@@ -117,7 +153,7 @@ export default function DashboardAdmin() {
             {formatMontant(Number(data.aujourd_hui?.encaisse_reel ?? 0))}
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            Réglé sur ventes du jour + recouvrement de dettes.
+            Réglé sur ventes du jour + recouvrement de dettes + avances déposées.
           </p>
         </div>
 
@@ -190,9 +226,9 @@ export default function DashboardAdmin() {
           color="green"
         />
         <KpiCard
-          label="Recouvrement du jour"
-          value={formatMontant(Number(data.aujourd_hui?.recouvrement ?? 0))}
-          sub="dettes encaissées"
+          label="Encaissé aujourd'hui"
+          value={formatMontant(Number(data.aujourd_hui?.encaisse_reel ?? 0))}
+          sub="ventes + recouvrement + avances"
           color="green"
         />
         <KpiCard
@@ -207,7 +243,24 @@ export default function DashboardAdmin() {
         />
       </div>
 
-      <div className="grid grid-cols-3 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-1 mb-1">
+            <p className="text-sm text-gray-500">Avances des boutiques-clientes (solde)</p>
+            <span
+              title="Somme des soldes d'avance de tous les clients marqués comme représentant une autre boutique du réseau. Cet argent est disponible pour régler de futurs transferts sans nouvel encaissement."
+              className="cursor-help"
+            >
+              <Info size={13} className="text-gray-400" />
+            </span>
+          </div>
+          <p className="text-xl font-semibold text-[#29ABE2]">
+            {formatMontant(Number(admin.solde_avances_boutiques ?? 0))}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
           label="Bénéfice du jour"
           value={formatMontant(Number(admin.benefice_aujourdhui ?? 0))}
@@ -217,6 +270,12 @@ export default function DashboardAdmin() {
           label="Dettes clients"
           value={formatMontant(Number(data.dettes_clients ?? 0))}
           color="red"
+        />
+        <KpiCard
+          label="Dû par les boutiques"
+          value={formatMontant(Number(admin.creances_transferts_boutiques ?? 0))}
+          sub="transferts inter-boutiques"
+          color={Number(admin.creances_transferts_boutiques ?? 0) > 0 ? 'red' : 'green'}
         />
         <KpiCard
           label="Alertes stock"

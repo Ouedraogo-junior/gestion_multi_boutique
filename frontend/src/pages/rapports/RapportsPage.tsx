@@ -21,7 +21,7 @@ type TabKey = 'ca' | 'stock' | 'dettes' | 'depenses' | 'consolide'
 const TABS: { key: TabKey; label: string; needsDate: boolean }[] = [
   { key: 'ca',        label: 'CA',        needsDate: true  },
   { key: 'stock',     label: 'Stock',     needsDate: false },
-  { key: 'dettes',    label: 'Dettes',    needsDate: false },
+  { key: 'dettes',    label: 'Dettes',    needsDate: true  }, 
   { key: 'depenses',  label: 'Dépenses',  needsDate: true  },
   { key: 'consolide', label: 'Consolidé', needsDate: true  },
 ]
@@ -68,7 +68,7 @@ export default function RapportsPage() {
         switch (activeTab) {
             case 'ca':        res = await getRapportCA(id, params);       break
             case 'stock':     res = await getRapportStock(id);            break
-            case 'dettes':    res = await getRapportDettes(id);           break
+            case 'dettes':    res = await getRapportDettes(id, params);   break  
             case 'depenses':  res = await getRapportDepenses(id, params); break
             case 'consolide': res = await getRapportConsolide(params);    break
         }

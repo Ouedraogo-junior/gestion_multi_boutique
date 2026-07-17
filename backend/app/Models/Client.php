@@ -10,7 +10,14 @@ use Illuminate\Support\Facades\DB;
 
 class Client extends Model
 {
-    protected $fillable = ['boutique_id', 'nom', 'prenom', 'telephone', 'adresse', 'notes'];
+    protected $fillable = ['boutique_id', 'nom', 'prenom', 'telephone', 'adresse', 'notes', 'est_boutique', 'represente_boutique_id',];
+
+    protected function casts(): array
+    {
+        return [
+            'est_boutique' => 'boolean',
+        ];
+    }
 
     public function boutique(): BelongsTo
     {

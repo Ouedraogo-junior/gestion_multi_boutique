@@ -1,27 +1,28 @@
-// src/pages/approvisionnements/ApprovisionnementDetailPage.tsx
-import { useEffect, useRef, useState } from 'react'
+// src/pages/transferts-boutiques/TransfertBoutiqueDetailPage.tsx
+import { useEffect, useState, useRef } from 'react'
+import { Printer } from 'lucide-react'
+import { useReactToPrint } from 'react-to-print'
+import { useBoutique } from '@/hooks/useBoutique'
+import RecuTransfertBoutique from './components/RecuTransfertBoutique'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Printer, Banknote, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Banknote, CheckCircle2, Clock, AlertCircle, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { useReactToPrint } from 'react-to-print'
 import {
-  getApprovisionnement,
-  getSoldeFournisseur,
-  type Approvisionnement,
-  type SoldeFournisseur,
-} from '@/api/approvisionnements'
-import { useBoutique } from '@/hooks/useBoutique'
+  getTransfert,
+  getSoldeTransfert,
+  type TransfertBoutique,
+  type SoldeTransfert,
+} from '@/api/transferts-boutiques'
 import { formatDate, formatMontant } from '@/utils/format'
-import RecuApprovisionnement from './components/RecuApprovisionnement'
-import PaiementDrawer from './components/PaiementDrawer'
+import PaiementTransfertDrawer from './components/PaiementTransfertDrawer'
 
 // ─── Badge statut paiement ────────────────────────────────────────────────────
 function BadgeStatutPaiement({ statut }: { statut: 'non_paye' | 'partiel' | 'solde' }) {
   const config = {
-    non_paye: { label: 'Non payé', icon: AlertCircle,   className: 'bg-red-50 text-red-600 border border-red-200' },
-    partiel:  { label: 'Partiel',  icon: Clock,         className: 'bg-amber-50 text-amber-600 border border-amber-200' },
-    solde:    { label: 'Soldé',    icon: CheckCircle2,  className: 'bg-green-50 text-green-600 border border-green-200' },
+    non_paye: { label: 'Non payé', icon: AlertCircle,  className: 'bg-red-50 text-red-600 border border-red-200' },
+    partiel:  { label: 'Partiel',  icon: Clock,        className: 'bg-amber-50 text-amber-600 border border-amber-200' },
+    solde:    { label: 'Soldé',    icon: CheckCircle2, className: 'bg-green-50 text-green-600 border border-green-200' },
   }
   const { label, icon: Icon, className } = config[statut]
   return (
@@ -32,37 +33,38 @@ function BadgeStatutPaiement({ statut }: { statut: 'non_paye' | 'partiel' | 'sol
   )
 }
 
-export default function ApprovisionnementDetailPage() {
-  const { boutiqueId, approId } = useParams()
-  const navigate                = useNavigate()
-  const { boutiqueActive }      = useBoutique()
-  const id                      = Number(boutiqueId)
+export default function TransfertBoutiqueDetailPage() {
+  const { boutiqueId, id: transfertId } = useParams()
+  const navigate = useNavigate()
+  const id       = Number(boutiqueId)
+  const { boutiqueActive } = useBoutique()
+  const recuRef = useRef<HTMLDivElement>(null)
+  const handlePrint = useReactToPrint({
+    contentRef: recuRef,
+    pageStyle: `@page { size: A4; margin: 0; } body { margin: 0; -webkit-print-color-adjust: exact; }`,
+  })
 
-  const [appro,        setAppro]        = useState<Approvisionnement | null>(null)
-  const [solde,        setSolde]        = useState<SoldeFournisseur | null>(null)
-  const [loading,      setLoading]      = useState(true)
-  const [drawerOpen,   setDrawerOpen]   = useState(false)
-  const recuRef                         = useRef<HTMLDivElement>(null)
+  const [transfert,  setTransfert]  = useState<TransfertBoutique | null>(null)
+  const [solde,      setSolde]      = useState<SoldeTransfert | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => {
     Promise.all([
-      getApprovisionnement(id, Number(approId)),
-      getSoldeFournisseur(id, Number(approId)),
-    ]).then(([resAppro, resSolde]) => {
-      setAppro(resAppro.data)
+      getTransfert(id, Number(transfertId)),
+      getSoldeTransfert(id, Number(transfertId)),
+    ]).then(([resTransfert, resSolde]) => {
+      setTransfert(resTransfert.data)
       setSolde(resSolde.data)
     }).finally(() => setLoading(false))
-  }, [approId])
-
-  const handlePrint = useReactToPrint({
-    contentRef: recuRef,
-    pageStyle: `@page { size: A4; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact; }`,
-  })
+  }, [transfertId])
 
   if (loading) return <div className="text-center py-16 text-gray-400">Chargement...</div>
-  if (!appro || !solde) return <div className="text-center py-16 text-gray-400">Approvisionnement introuvable</div>
+  if (!transfert || !solde) return <div className="text-center py-16 text-gray-400">Transfert introuvable</div>
 
-  const totalGeneral = appro.lignes.reduce((s, l) => s + Number(l.prix_achat) * l.quantite, 0)
+  const estSource     = transfert.boutique_source_id === id
+  const autreBoutique = estSource ? transfert.boutique_destination : transfert.boutique_source
+  const totalGeneral  = transfert.lignes.reduce((s, l) => s + Number(l.prix_unitaire) * l.quantite, 0)
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -70,35 +72,45 @@ export default function ApprovisionnementDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(`/boutiques/${id}/approvisionnements`)}
+            <button
+            onClick={() => navigate(`/boutiques/${id}/transferts-boutiques`)}
             className="text-gray-400 hover:text-gray-600"
-          >
+            >
             <ArrowLeft size={20} />
-          </button>
-          <div>
+            </button>
+            <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl text-[#1C1C1C]">{appro.reference}</h1>
-              <BadgeStatutPaiement statut={solde.statut_paiement} />
+                <h1 className="text-2xl text-[#1C1C1C]">{transfert.reference}</h1>
+                <BadgeStatutPaiement statut={solde.statut_paiement} />
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">{formatDate(appro.created_at)}</p>
-          </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
+                {estSource ? (
+                <ArrowUpRight size={12} className="text-[#1A7A4A]" />
+                ) : (
+                <ArrowDownLeft size={12} className="text-[#E8314A]" />
+                )}
+                {estSource ? 'Envoyé vers' : 'Reçu de'} <span className="font-medium">{autreBoutique?.nom}</span>
+                <span>· {formatDate(transfert.created_at)}</span>
+            </div>
+            </div>
         </div>
-        <Button
-          onClick={() => handlePrint()}
-          className="bg-[#1A7A4A] hover:bg-[#145C38] text-white"
-        >
-          <Printer size={16} className="mr-2" />
-          Imprimer le reçu
-        </Button>
-      </div>
+        {boutiqueActive && (
+            <Button
+            onClick={() => handlePrint()}
+            className="bg-[#1A7A4A] hover:bg-[#145C38] text-white"
+            >
+            <Printer size={16} className="mr-2" />
+            Imprimer le bon
+            </Button>
+        )}
+        </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Total articles</p>
           <p className="text-lg font-medium text-gray-900">
-            {appro.lignes.length} article{appro.lignes.length > 1 ? 's' : ''}
+            {transfert.lignes.length} article{transfert.lignes.length > 1 ? 's' : ''}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -108,46 +120,33 @@ export default function ApprovisionnementDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Enregistré par</p>
           <p className="text-lg font-medium text-gray-900">
-            {appro.user.prenom} {appro.user.nom}
+            {transfert.user.prenom} {transfert.user.nom}
           </p>
         </div>
       </div>
 
-      {/* Fournisseur */}
+      {/* Boutique concernée */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
-        <h2 className="text-base font-medium text-gray-800">Fournisseur</h2>
+        <h2 className="text-base font-medium text-gray-800">
+          {estSource ? 'Boutique destinataire' : 'Boutique source'}
+        </h2>
         <Separator />
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <span className="text-gray-500">Nom : </span>
-            <span className="font-medium">{appro.fournisseur.nom}</span>
-          </div>
-          {appro.fournisseur.telephone && (
-            <div>
-              <span className="text-gray-500">Tél : </span>
-              {appro.fournisseur.telephone}
-            </div>
-          )}
-          {appro.fournisseur.provenance && (
-            <div>
-              <span className="text-gray-500">Provenance : </span>
-              {appro.fournisseur.provenance}
-            </div>
-          )}
-          {appro.fournisseur.adresse && (
-            <div>
-              <span className="text-gray-500">Adresse : </span>
-              {appro.fournisseur.adresse}
-            </div>
-          )}
+        <div className="text-sm">
+          <span className="text-gray-500">Nom : </span>
+          <span className="font-medium">{autreBoutique?.nom}</span>
         </div>
+        {!estSource && (
+          <p className="text-xs text-gray-400 italic">
+            Cette boutique a cédé la marchandise. Le versement est à effectuer auprès d'elle, pas ici.
+          </p>
+        )}
       </div>
 
       {/* Section paiements */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-medium text-gray-800">Paiement fournisseur</h2>
-          {solde.statut_paiement !== 'solde' && (
+          <h2 className="text-base font-medium text-gray-800">Paiement</h2>
+          {estSource && solde.statut_paiement !== 'solde' && (
             <Button
               onClick={() => setDrawerOpen(true)}
               variant="outline"
@@ -165,8 +164,8 @@ export default function ApprovisionnementDetailPage() {
           <div className="bg-gray-50 rounded-lg p-3">
             <p className="text-xs text-gray-400 mb-1">Montant dû</p>
             <p className="text-base font-semibold text-gray-800">{formatMontant(solde.montant_du)}</p>
-            {appro.montant_total_facture && Number(appro.montant_total_facture) !== Number(appro.montant_calcule) && (
-              <p className="text-xs text-gray-400 mt-0.5">calculé : {formatMontant(Number(appro.montant_calcule))}</p>
+            {transfert.montant_convenu && Number(transfert.montant_convenu) !== Number(transfert.montant_calcule) && (
+              <p className="text-xs text-gray-400 mt-0.5">calculé : {formatMontant(Number(transfert.montant_calcule))}</p>
             )}
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
@@ -188,14 +187,15 @@ export default function ApprovisionnementDetailPage() {
             <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
               {solde.versements.map(v => (
                 <div key={v.id} className="flex items-center justify-between px-4 py-3 text-sm hover:bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <span className="font-medium text-gray-800">{formatMontant(Number(v.montant))}</span>
-                      <span className="text-gray-400 ml-2">{v.mode_paiement.libelle}</span>
-                      {v.reference_paiement && (
-                        <span className="text-gray-400 ml-2 font-mono text-xs">#{v.reference_paiement}</span>
-                      )}
-                    </div>
+                  <div>
+                    <span className="font-medium text-gray-800">{formatMontant(Number(v.montant))}</span>
+                    <span className="text-gray-400 ml-2">
+                      {v.mode === 'especes' ? 'Espèces' : 'Mobile Money'}
+                      {v.operateur && ` · ${v.operateur.libelle}`}
+                    </span>
+                    {v.reference_paiement && (
+                      <span className="text-gray-400 ml-2 font-mono text-xs">#{v.reference_paiement}</span>
+                    )}
                   </div>
                   <div className="text-right text-xs text-gray-400">
                     <div>{formatDate(v.date_paiement)}</div>
@@ -213,7 +213,7 @@ export default function ApprovisionnementDetailPage() {
       {/* Lignes produits */}
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="p-6 pb-3">
-          <h2 className="text-base font-medium text-gray-800">Produits</h2>
+          <h2 className="text-base font-medium text-gray-800">Produits transférés</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -222,17 +222,17 @@ export default function ApprovisionnementDetailPage() {
                 <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Produit</th>
                 <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Référence</th>
                 <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Quantité</th>
-                <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Prix achat</th>
+                <th className="text-left py-3 px-4 text-sm text-gray-500 font-medium">Prix unitaire</th>
                 <th className="text-right py-3 px-4 text-sm text-gray-500 font-medium">Total</th>
               </tr>
             </thead>
             <tbody>
-              {appro.lignes.map((l, i) => {
+              {transfert.lignes.map((l, i) => {
                 const designation = l.variante?.produit?.designation ?? '—'
                 const attributs   = l.variante?.attributs && Object.keys(l.variante.attributs).length > 0
                   ? Object.values(l.variante.attributs).join(' / ') : ''
                 const label = attributs ? `${designation} (${attributs})` : designation
-                const total = Number(l.prix_achat) * l.quantite
+                const total = Number(l.prix_unitaire) * l.quantite
                 return (
                   <tr key={i} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
                     <td className="py-3 px-4 text-sm font-medium text-[#1C1C1C]">{label}</td>
@@ -240,7 +240,7 @@ export default function ApprovisionnementDetailPage() {
                       {l.variante?.produit?.reference ?? '—'}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-700">{l.quantite}</td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{formatMontant(Number(l.prix_achat))}</td>
+                    <td className="py-3 px-4 text-sm text-gray-700">{formatMontant(Number(l.prix_unitaire))}</td>
                     <td className="py-3 px-4 text-sm font-semibold text-[#1A7A4A] text-right">
                       {formatMontant(total)}
                     </td>
@@ -263,36 +263,38 @@ export default function ApprovisionnementDetailPage() {
       </div>
 
       {/* Note */}
-      {appro.note && (
+      {transfert.note && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-2">
           <h2 className="text-base font-medium text-gray-800">Note</h2>
           <Separator />
-          <p className="text-sm text-gray-600">{appro.note}</p>
+          <p className="text-sm text-gray-600">{transfert.note}</p>
         </div>
       )}
 
-      {/* Reçu monté en arrière-plan */}
-      <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '210mm', zIndex: -1 }}>
-        {appro && boutiqueActive && (
-          <RecuApprovisionnement
+      {/* Bon monté en arrière-plan */}
+        <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '210mm', zIndex: -1 }}>
+        {transfert && boutiqueActive && (
+            <RecuTransfertBoutique
             ref={recuRef}
-            appro={appro}
+            transfert={transfert}
             boutique={boutiqueActive}
             logoBase64={boutiqueActive.logo_base64 ?? null}
-          />
+            />
         )}
-      </div>
+        </div>
 
-      {/* Drawer paiement */}
-      <PaiementDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        boutiqueId={id}
-        solde={solde}
-        onSuccess={(updated) => {
-          setSolde(prev => prev ? { ...prev, ...updated } : prev)
-        }}
-      />
+      {/* Drawer paiement — uniquement côté boutique source */}
+      {estSource && (
+        <PaiementTransfertDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          boutiqueId={id}
+          solde={solde}
+          onSuccess={(updated) => {
+            setSolde(prev => prev ? { ...prev, ...updated } : prev)
+          }}
+        />
+      )}
 
     </div>
   )

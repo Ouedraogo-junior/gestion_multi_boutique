@@ -1,11 +1,15 @@
 @extends('rapports.layout')
 
 @section('titre', 'Rapport Dettes Clients')
-@section('sous_titre', 'Généré le ' . now()->format('d/m/Y'))
+@section('sous_titre',
+    isset($data['periode'])
+        ? 'Du ' . $data['periode']['debut'] . ' au ' . $data['periode']['fin']
+        : 'Généré le ' . now()->format('d/m/Y')
+)
 
 @section('contenu')
     <div class="kpi" style="background:#FEF2F2; padding:12px 16px; border-radius:6px; margin-bottom:16px;">
-        <p>Total créances</p>
+        <p>Total créances (solde actuel)</p>
         <p style="font-size:20px; color:#E8314A; font-weight:bold;">
             {{ number_format($data['total_dettes'], 0, ',', ' ') }} FCFA
         </p>
@@ -35,4 +39,39 @@
             @endforeach
         </tbody>
     </table>
+
+    @if(isset($data['paiements_periode']))
+    <div class="kpi" style="background:#D4F0E2; padding:12px 16px; border-radius:6px; margin:16px 0;">
+        <p>Paiements reçus sur la période</p>
+        <p style="font-size:20px; color:#1A7A4A; font-weight:bold;">
+            {{ number_format($data['total_paiements_periode'], 0, ',', ' ') }} FCFA
+        </p>
+    </div>
+
+    <h3>Historique des paiements</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Client</th>
+                <th>Origine</th>
+                <th>Mode</th>
+                <th class="right">Montant</th>
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($data['paiements_periode'] as $p)
+            <tr>
+                <td>{{ \Carbon\Carbon::parse($p['date'])->format('d/m/Y') }}</td>
+                <td>{{ trim(($p['prenom'] ?? '') . ' ' . ($p['nom'] ?? '')) }}</td>
+                <td>{{ $p['source'] === 'vente' ? ($p['numero_facture'] ?? '—') : 'Dette antérieure' }}</td>
+                <td>{{ $p['mode'] === 'especes' ? 'Espèces' : 'Mobile Money' }}</td>
+                <td class="right green">{{ number_format($p['montant'], 0, ',', ' ') }} FCFA</td>
+            </tr>
+            @empty
+            <tr><td colspan="5" style="text-align:center; color:#6B7280;">Aucun paiement sur cette période</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+    @endif
 @endsection

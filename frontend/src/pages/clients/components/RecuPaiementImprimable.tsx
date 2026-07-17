@@ -5,7 +5,7 @@ import { formatMontant, formatDate } from '@/utils/format'
 
 interface Paiement {
   montant: number
-  mode: 'especes' | 'mobile_money'
+  mode: 'especes' | 'mobile_money' | 'avance_client'
   date: string
   vente: {
     numero_facture: string
@@ -22,8 +22,9 @@ interface Props {
 }
 
 const MODE_LABELS: Record<string, string> = {
-  especes:      'Espèces',
-  mobile_money: 'Mobile Money',
+  especes:       'Espèces',
+  mobile_money:  'Mobile Money',
+  avance_client: 'Avance',
 }
 
 const RecuPaiementImprimable = forwardRef<HTMLDivElement, Props>(
@@ -103,6 +104,12 @@ const RecuPaiementImprimable = forwardRef<HTMLDivElement, Props>(
             </tr>
           </tbody>
         </table>
+
+        {paiement.mode === 'avance_client' && (
+          <div style={{ fontSize: '9px', color: '#555', fontStyle: 'italic', marginTop: '-2mm', marginBottom: '2mm' }}>
+            Réglé par prélèvement sur l'avance du client — aucun encaissement en espèces à cette date.
+          </div>
+        )}
 
         {/* Soldes */}
         <div style={{ borderTop: '1px solid #ccc', paddingTop: '2mm', marginTop: '2mm' }}>

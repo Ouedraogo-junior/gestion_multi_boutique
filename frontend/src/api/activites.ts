@@ -1,6 +1,12 @@
 import api from './axios'
 
-export type ActiviteType = 'vente' | 'dette_initiale' | 'paiement_vente' | 'paiement_dette_initiale'
+export type ActiviteType =
+  | 'vente'
+  | 'dette_initiale'
+  | 'paiement_vente'
+  | 'paiement_dette_initiale'
+  | 'avance_depot'
+  | 'avance_utilisation'
 
 export interface ActiviteItem {
   type: ActiviteType

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CheckCircle, Printer } from 'lucide-react'
-import { storePaiement, storePaiementDetteInitiale, getDettes } from '@/api/clients'
+import { storePaiement, storePaiementDetteInitiale, getDettes, getAvances } from '@/api/clients'
 import type { Client, Dette, DetteInitiale } from '@/api/clients'
 import { getReferentiels } from '@/api/referentiels'
 import { formatMontant } from '@/utils/format'
@@ -24,7 +24,7 @@ interface Props {
     client: Client
     paiement: {
       montant: number
-      mode: 'especes' | 'mobile_money'
+      mode: 'especes' | 'mobile_money' | 'avance_client'
       date: string
       vente: { numero_facture: string; total_net: number; solde_restant: number }
     }
@@ -40,6 +40,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
   const [dettes, setDettes]                   = useState<Dette[]>([])
   const [dettesInitiales, setDettesInitiales]  = useState<DetteInitiale[]>([])
   const [totalDette, setTotalDette]            = useState(0)
+  const [soldeAvance, setSoldeAvance]          = useState(0)
   const [operateurs, setOperateurs]            = useState<Operateur[]>([])
   const [loading, setLoading]                  = useState(false)
   const [loadingDettes, setLoadingDettes]      = useState(false)
@@ -47,7 +48,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
   // Sélection unifiée : "vente:12" ou "dette_initiale:4"
   const [selection, setSelection]     = useState('')
   const [montant, setMontant]         = useState('')
-  const [mode, setMode]               = useState<'especes' | 'mobile_money'>('especes')
+  const [mode, setMode]               = useState<'especes' | 'mobile_money' | 'avance_client'>('especes')
   const [operateurId, setOperateurId] = useState('')
   const [date, setDate]               = useState(new Date().toISOString().slice(0, 10))
 
@@ -56,7 +57,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
 
   const [dernierPaiement, setDernierPaiement] = useState<{
     montant: number
-    mode: 'especes' | 'mobile_money'
+    mode: 'especes' | 'mobile_money' | 'avance_client'
     date: string
     vente: { numero_facture: string; total_net: number; solde_restant: number }
   } | null>(null)
@@ -98,6 +99,10 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
       })
       .finally(() => setLoadingDettes(false))
 
+    getAvances(boutiqueId, client.id)
+      .then(res => setSoldeAvance(res.data.solde_avance ?? 0))
+      .catch(() => setSoldeAvance(0))
+
     getReferentiels(boutiqueId, 'operateur_mm').then(res => {
       const data = res.data ?? []
       setOperateurs(Array.isArray(data) ? data.map((r: { id: number; libelle: string }) => ({ id: r.id, libelle: r.libelle })) : [])
@@ -107,13 +112,15 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
   const [selType, selId] = selection.split(':')
   const detteVenteSelectionnee    = selType === 'vente'           ? dettes.find(d => d.vente_id === Number(selId)) : undefined
   const detteInitialeSelectionnee = selType === 'dette_initiale'  ? dettesInitiales.find(d => d.dette_initiale_id === Number(selId)) : undefined
-  const soldeMax = (detteVenteSelectionnee ?? detteInitialeSelectionnee)?.solde_restant
+  const soldeDette = (detteVenteSelectionnee ?? detteInitialeSelectionnee)?.solde_restant ?? 0
+  const soldeMax = mode === 'avance_client' ? Math.min(soldeDette, soldeAvance) : soldeDette
 
   const handleSubmit = async () => {
     if (!client) return
     if (!selection) { toast.error('Sélectionnez une dette'); return }
     if (!montant || Number(montant) <= 0) { toast.error('Montant invalide'); return }
     if (mode === 'mobile_money' && !operateurId) { toast.error('Sélectionnez un opérateur'); return }
+    if (mode === 'avance_client' && Number(montant) > soldeAvance) { toast.error('Solde d\'avance insuffisant'); return }
 
     setLoading(true)
     try {
@@ -122,7 +129,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
           vente_id:     Number(selId),
           montant:      Number(montant),
           mode,
-          operateur_id: operateurId ? Number(operateurId) : null,
+          operateur_id: mode === 'mobile_money' && operateurId ? Number(operateurId) : null,
           date,
         })
 
@@ -144,7 +151,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
         await storePaiementDetteInitiale(boutiqueId, client.id, Number(selId), {
           montant:      Number(montant),
           mode,
-          operateur_id: operateurId ? Number(operateurId) : null,
+          operateur_id: mode === 'mobile_money' && operateurId ? Number(operateurId) : null,
           date,
         })
         // Pas de vente associée : pas de reçu imprimable, confirmation directe
@@ -164,7 +171,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
   const reset = () => {
     setSelection(''); setMontant(''); setMode('especes')
     setOperateurId(''); setDate(new Date().toISOString().slice(0, 10))
-    setDettes([]); setDettesInitiales([]); setTotalDette(0)
+    setDettes([]); setDettesInitiales([]); setTotalDette(0); setSoldeAvance(0)
   }
 
   return (
@@ -185,6 +192,11 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
                 </p>
                 <p className="text-sm text-gray-500 mt-2">Total restant dû</p>
                 <p className="text-2xl text-[#E8314A]">{formatMontant(totalDette)}</p>
+                {soldeAvance > 0 && (
+                  <p className="text-xs text-[#1A7A4A] mt-1">
+                    Avance disponible : {formatMontant(soldeAvance)}
+                  </p>
+                )}
               </div>
 
               {/* Sélection dette */}
@@ -287,20 +299,51 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
                   max={soldeMax}
                   className="border-gray-200"
                 />
+                {mode === 'avance_client' && (
+                  <p className="text-xs text-gray-400">Max : {formatMontant(soldeMax)} (limité par le solde d'avance)</p>
+                )}
               </div>
 
               {/* Mode */}
               <div className="space-y-2">
                 <Label>Mode de paiement *</Label>
-                <Select value={mode} onValueChange={v => setMode(v as 'especes' | 'mobile_money')}>
-                  <SelectTrigger className="border-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="especes">Espèces</SelectItem>
-                    <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className={`grid ${soldeAvance > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+                  <button
+                    type="button"
+                    onClick={() => setMode('especes')}
+                    className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      mode === 'especes'
+                        ? 'border-[#1A7A4A] bg-[#D4F0E2] text-[#145C38] font-medium'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Espèces
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('mobile_money')}
+                    className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      mode === 'mobile_money'
+                        ? 'border-[#1A7A4A] bg-[#D4F0E2] text-[#145C38] font-medium'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Mobile Money
+                  </button>
+                  {soldeAvance > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setMode('avance_client')}
+                      className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                        mode === 'avance_client'
+                          ? 'border-[#29ABE2] bg-blue-50 text-[#1A8EC4] font-medium'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      Avance
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Opérateur MM */}
@@ -345,7 +388,7 @@ export default function PaiementDialog({ boutiqueId, client, onClose, onPaid, on
       </Dialog>
 
       {/* Div caché pour impression */}
-      <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '148mm', zIndex: -1 }}>
+      <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '210mm', zIndex: -1 }}>
         {dernierPaiement && client && boutiqueActive && (
           <RecuPaiementImprimable
             ref={recuRef}

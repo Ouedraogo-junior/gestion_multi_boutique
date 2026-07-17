@@ -8,6 +8,8 @@ export interface Client {
   telephone?: string | null
   adresse?: string | null
   notes?: string | null
+  est_boutique?: boolean
+  represente_boutique_id?: number | null
   total_dette?: number
   total_achat?: number | string
   total_paye?: number | string
@@ -23,16 +25,51 @@ export interface Dette {
   solde_restant: number
 }
 
+export interface DetteInitiale {
+  dette_initiale_id: number
+  date: string
+  montant_initial: number
+  note?: string | null
+  total_paye: number
+  solde_restant: number
+}
+
+export interface DetteInitialeCreated {
+  id: number
+  boutique_id: number
+  client_id: number
+  montant: number
+  date: string
+  note?: string | null
+  user_id: number
+  created_at: string
+}
+
 export interface DettesResponse {
   client: Client
   total_dette: number
   dettes: Dette[]
+  dettes_initiales: DetteInitiale[]
 }
 
 export interface PaiementPayload {
   vente_id: number
   montant: number
-  mode: 'especes' | 'mobile_money'
+  mode: 'especes' | 'mobile_money' | 'avance_client'
+  operateur_id?: number | null
+  note?: string
+  date: string
+}
+
+export interface DetteInitialePayload {
+  montant: number
+  date: string
+  note?: string
+}
+
+export interface PaiementDetteInitialePayload {
+  montant: number
+  mode: 'especes' | 'mobile_money' | 'avance_client'
   operateur_id?: number | null
   note?: string
   date: string
@@ -41,13 +78,18 @@ export interface PaiementPayload {
 export interface PaiementHistorique {
   id?: number
   vente_id?: number
+  dette_initiale_id?: number
+  source?: 'vente' | 'dette_initiale'
   montant: number
-  mode: 'especes' | 'mobile_money'
+  mode: 'especes' | 'mobile_money' | 'avance_client'
   date: string
   note?: string | null
   vente?: {
     numero_facture: string
     total_net: number
+    solde_restant: number
+  }
+  dette_initiale?: {
     solde_restant: number
   }
 }
@@ -91,66 +133,6 @@ export interface AvanceDepotResponse {
   solde_avance_apres: number
 }
 
-export interface DetteInitiale {
-  dette_initiale_id: number
-  date: string
-  montant_initial: number
-  note?: string | null
-  total_paye: number
-  solde_restant: number
-}
-
-export interface DetteInitialeCreated {
-  id: number
-  boutique_id: number
-  client_id: number
-  montant: number
-  date: string
-  note?: string | null
-  user_id: number
-  created_at: string
-}
-
-export interface DettesResponse {
-  client: Client
-  total_dette: number
-  dettes: Dette[]
-  dettes_initiales: DetteInitiale[]
-}
-
-export interface DetteInitialePayload {
-  montant: number
-  date: string
-  note?: string
-}
-
-export interface PaiementDetteInitialePayload {
-  montant: number
-  mode: 'especes' | 'mobile_money'
-  operateur_id?: number | null
-  note?: string
-  date: string
-}
-
-export interface PaiementHistorique {
-  id?: number
-  vente_id?: number
-  dette_initiale_id?: number
-  source?: 'vente' | 'dette_initiale'
-  montant: number
-  mode: 'especes' | 'mobile_money'
-  date: string
-  note?: string | null
-  vente?: {
-    numero_facture: string
-    total_net: number
-    solde_restant: number
-  }
-  dette_initiale?: {
-    solde_restant: number
-  }
-}
-
 export const getClients     = (boutiqueId: number, params?: Record<string, unknown>) =>
   api.get(`/boutiques/${boutiqueId}/clients`, { params })
 
@@ -187,7 +169,7 @@ export const storePaiementDetteInitiale = (
   boutiqueId: number, id: number, detteInitialeId: number, data: PaiementDetteInitialePayload
 ) =>
   api.post(`/boutiques/${boutiqueId}/clients/${id}/dettes-initiales/${detteInitialeId}/paiements`, data)
-  
+
 
 // --- Avances ---
 

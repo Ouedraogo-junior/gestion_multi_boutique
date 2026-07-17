@@ -162,7 +162,8 @@
     visibility: hidden;
   }
   #recu-print, #recu-print *,
-  #recu-appro-print, #recu-appro-print * {
+  #recu-appro-print, #recu-appro-print *,
+  #recu-transfert-print, #recu-transfert-print * {
     visibility: visible;
   }
 }

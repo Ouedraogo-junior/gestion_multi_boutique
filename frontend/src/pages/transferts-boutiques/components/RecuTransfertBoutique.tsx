@@ -1,11 +1,10 @@
-// src/pages/approvisionnements/components/RecuApprovisionnement.tsx
 import { forwardRef } from 'react'
-import type { Approvisionnement } from '@/api/approvisionnements'
+import type { TransfertBoutique } from '@/api/transferts-boutiques'
 import type { Boutique } from '@/contexts/BoutiqueContext'
 import { formatDate } from '@/utils/format'
 
 interface Props {
-  appro: Approvisionnement
+  transfert: TransfertBoutique
   boutique: Boutique
   logoBase64?: string | null
 }
@@ -16,21 +15,21 @@ const STATUT_CONFIG = {
   solde:    { label: 'SOLDÉ',    color: '#1A7A4A' },
 } as const
 
-const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutique, logoBase64 }, ref) => {
+const RecuTransfertBoutique = forwardRef<HTMLDivElement, Props>(({ transfert, boutique, logoBase64 }, ref) => {
   const fmt    = (n: number) => Number(n).toLocaleString('fr-FR')
-  const lignes = appro.lignes ?? []
-  const totalGeneral = lignes.reduce((s, l) => s + Number(l.prix_achat) * l.quantite, 0)
+  const lignes = transfert.lignes ?? []
+  const totalGeneral = lignes.reduce((s, l) => s + Number(l.prix_unitaire) * l.quantite, 0)
 
-  const montantDu    = Number(appro.montant_total_facture ?? appro.montant_calcule)
-  const soldeRestant = appro.solde_restant ?? montantDu
+  const montantDu    = transfert.montant_du ?? Number(transfert.montant_convenu ?? transfert.montant_calcule)
+  const soldeRestant = transfert.solde_restant ?? montantDu
   const montantPaye  = montantDu - soldeRestant
-  const statut       = appro.statut_paiement ?? 'non_paye'
+  const statut       = transfert.statut_paiement ?? 'non_paye'
   const { label: statutLabel, color: statutColor } = STATUT_CONFIG[statut]
 
   return (
     <div
       ref={ref}
-      id="recu-appro-print"
+      id="recu-transfert-print"
       style={{
         width: '210mm',
         minHeight: '297mm',
@@ -79,14 +78,14 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
       {/* Titre */}
       <div style={{ textAlign: 'center', marginBottom: '5mm' }}>
         <div style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '1px' }}>
-          BON D'ENTRÉE EN STOCK
+          BON DE TRANSFERT INTER-BOUTIQUE
         </div>
         <div style={{ fontSize: '13px', color: '#555', marginTop: '1.5mm' }}>
-          Réf : <strong>{appro.reference}</strong>
+          Réf : <strong>{transfert.reference}</strong>
         </div>
       </div>
 
-      {/* Infos fournisseur + opérateur */}
+      {/* Boutiques source / destination */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
@@ -99,22 +98,28 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
       }}>
         <div>
           <div style={{ fontWeight: 'bold', marginBottom: '1.5mm', fontSize: '11px', color: '#555', textTransform: 'uppercase' }}>
-            Fournisseur
+            Boutique émettrice
           </div>
-          <div><strong>{appro.fournisseur.nom}</strong></div>
-          {appro.fournisseur.telephone  && <div>Tél : {appro.fournisseur.telephone}</div>}
-          {appro.fournisseur.provenance && <div>Provenance : {appro.fournisseur.provenance}</div>}
-          {appro.fournisseur.adresse    && <div>Adresse : {appro.fournisseur.adresse}</div>}
+          <div><strong>{transfert.boutique_source.nom}</strong></div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '1.5mm', fontSize: '11px', color: '#555', textTransform: 'uppercase' }}>
-            Enregistré par
+            Boutique destinataire
           </div>
-          <div><strong>{appro.user.prenom} {appro.user.nom}</strong></div>
-          <div style={{ marginTop: '1.5mm' }}>Date : <strong>{formatDate(appro.created_at)}</strong></div>
-          {appro.note && <div style={{ marginTop: '1.5mm', fontStyle: 'italic', color: '#666' }}>{appro.note}</div>}
+          <div><strong>{transfert.boutique_destination.nom}</strong></div>
         </div>
       </div>
+
+      {/* Enregistré par / date */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5mm', fontSize: '13px' }}>
+        <div>Enregistré par : <strong>{transfert.user.prenom} {transfert.user.nom}</strong></div>
+        <div>Date : <strong>{formatDate(transfert.created_at)}</strong></div>
+      </div>
+      {transfert.note && (
+        <div style={{ fontSize: '12px', fontStyle: 'italic', color: '#666', marginBottom: '4mm' }}>
+          {transfert.note}
+        </div>
+      )}
 
       {/* Tableau des articles */}
       <div style={{ flex: 1 }}>
@@ -124,7 +129,7 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
               <th style={thStyle({ width: '8mm' })}>N°</th>
               <th style={thStyle({})}>Article</th>
               <th style={thStyle({ width: '14mm' })}>Qté</th>
-              <th style={thStyle({ width: '28mm' })}>Prix achat</th>
+              <th style={thStyle({ width: '28mm' })}>Prix unitaire</th>
               <th style={thStyle({ width: '30mm' })}>Total</th>
             </tr>
           </thead>
@@ -134,14 +139,14 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
               const attributs   = l.variante?.attributs && Object.keys(l.variante.attributs).length > 0
                 ? Object.values(l.variante.attributs).join(' / ') : ''
               const label = attributs ? `${designation} (${attributs})` : designation
-              const total = Number(l.prix_achat) * l.quantite
+              const total = Number(l.prix_unitaire) * l.quantite
 
               return (
                 <tr key={l.id}>
                   <td style={tdStyle({ textAlign: 'center' })}>{i + 1}</td>
                   <td style={tdStyle({})}>{label}</td>
                   <td style={tdStyle({ textAlign: 'center' })}>{l.quantite}</td>
-                  <td style={tdStyle({ textAlign: 'right' })}>{fmt(Number(l.prix_achat))}</td>
+                  <td style={tdStyle({ textAlign: 'right' })}>{fmt(Number(l.prix_unitaire))}</td>
                   <td style={tdStyle({ textAlign: 'right' })}>{fmt(total)}</td>
                 </tr>
               )
@@ -169,7 +174,7 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
         breakInside: 'avoid',
       }}>
         <div style={{ textAlign: 'center', marginBottom: '3mm' }}>
-          Entrée arrêtée à la somme de : <strong>{fmt(totalGeneral)} FCFA</strong>
+          Transfert arrêté à la somme de : <strong>{fmt(totalGeneral)} FCFA</strong>
         </div>
 
         {/* Statut paiement */}
@@ -181,7 +186,7 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
           fontSize: '13px',
         }}>
           <div style={{ fontWeight: 'bold', marginBottom: '1.5mm', fontSize: '11px', color: '#555', textTransform: 'uppercase' }}>
-            Paiement fournisseur
+            Paiement de la boutique destinataire
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '3mm' }}>
             <div>
@@ -202,8 +207,8 @@ const RecuApprovisionnement = forwardRef<HTMLDivElement, Props>(({ appro, boutiq
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8mm', fontStyle: 'italic' }}>
-          <span>Le Responsable</span>
-          <span>Le Fournisseur</span>
+          <span>Le Responsable ({transfert.boutique_source.nom})</span>
+          <span>Le Représentant ({transfert.boutique_destination.nom})</span>
         </div>
       </div>
 
@@ -228,5 +233,5 @@ const tdStyle = (extra: React.CSSProperties): React.CSSProperties => ({
   ...extra,
 })
 
-RecuApprovisionnement.displayName = 'RecuApprovisionnement'
-export default RecuApprovisionnement
+RecuTransfertBoutique.displayName = 'RecuTransfertBoutique'
+export default RecuTransfertBoutique

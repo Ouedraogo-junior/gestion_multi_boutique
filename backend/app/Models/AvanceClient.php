@@ -46,4 +46,9 @@ class AvanceClient extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function detteInitiale(): BelongsTo
+    {
+        return $this->belongsTo(DetteInitiale::class);
+    }
 }

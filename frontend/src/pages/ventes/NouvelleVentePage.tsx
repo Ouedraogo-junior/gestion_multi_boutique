@@ -38,11 +38,12 @@ export default function NouvelleVentePage() {
   const recuRef                       = useRef<HTMLDivElement>(null)
   const [brouillonId, setBrouillonId] = useState<number | null>(null)
 
+  const estBrouillon = venteFinale?.statut === 'brouillon'
 
   const handlePrint = useReactToPrint({
     contentRef: recuRef,
-    pageStyle: ` 
-                @page { size: A5; margin: 10mm; }
+    pageStyle: `
+                @page { size: A4; margin: 0; }
                 body { margin: 0; -webkit-print-color-adjust: exact; }
                 `,
     onBeforePrint: async () => {
@@ -204,7 +205,6 @@ export default function NouvelleVentePage() {
         // 2. Valider le brouillon via l'endpoint dédié
         const res = await validerVente(id, brouillonId, buildPaiements())
         vente = res.data
-        // console.log('vente brute:', JSON.stringify(vente, null, 2))
       } else if (brouillonId && !valider) {
         // Sauvegarder brouillon existant
         const res = await updateVente(id, brouillonId, {
@@ -222,17 +222,12 @@ export default function NouvelleVentePage() {
           valider,
         })
         vente = res.data
-        // console.log('vente brute:', JSON.stringify(vente, null, 2))
       }
 
-      if (valider) {
-        setVenteFinale(vente)
-        setRecuDialog(true)
-        toast.success(`Vente validée — Facture ${vente.numero_facture}`)
-      } else {
-        toast.success('Brouillon enregistré')
-        navigate(`/boutiques/${id}/ventes`)
-      }
+      // Dans les deux cas (validée ou brouillon), on affiche le dialog de reçu/devis
+      setVenteFinale(vente)
+      setRecuDialog(true)
+      toast.success(valider ? `Vente validée — Facture ${vente.numero_facture}` : 'Brouillon enregistré')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(msg ?? 'Erreur lors de l\'enregistrement')
@@ -330,12 +325,12 @@ export default function NouvelleVentePage() {
       </div>
 
       {/* Reçu toujours monté dans le DOM */}
-      <div style={{ 
-        position: 'fixed', 
-        top: '-9999px', 
-        left: 0, 
-        width: '148mm',
-        zIndex: -1 
+      <div style={{
+        position: 'fixed',
+        top: '-9999px',
+        left: 0,
+        width: '210mm',
+        zIndex: -1
        }}>
         {venteFinale && boutiqueActive && (
             <RecuImprimable
@@ -351,19 +346,22 @@ export default function NouvelleVentePage() {
       <Dialog open={recuDialog} onOpenChange={setRecuDialog}>
         <DialogContent className="max-w-[180mm] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Vente validée</DialogTitle>
+            <DialogTitle>{estBrouillon ? 'Brouillon enregistré' : 'Vente validée'}</DialogTitle>
           </DialogHeader>
           {venteFinale && boutiqueActive && (
             <div className="space-y-2 mt-2">
               <p className="text-sm text-gray-500 text-center">
-                Facture <strong>{venteFinale.numero_facture}</strong> — {formatMontant(venteFinale.total_net)}
+                {estBrouillon
+                  ? <>Brouillon <strong>#{venteFinale.id}</strong> — {formatMontant(venteFinale.total_net)}</>
+                  : <>Facture <strong>{venteFinale.numero_facture}</strong> — {formatMontant(venteFinale.total_net)}</>
+                }
               </p>
               <Button
                 onClick={() => handlePrint()}
                 className="w-full bg-[#1A7A4A] hover:bg-[#145C38] text-white"
               >
                 <Printer size={18} className="mr-2" />
-                Imprimer le reçu
+                {estBrouillon ? 'Imprimer le devis' : 'Imprimer le reçu'}
               </Button>
               <Button
                 variant="outline"

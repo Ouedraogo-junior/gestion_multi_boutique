@@ -20,7 +20,7 @@ class BoutiqueController extends Controller
         $data = $request->validate([
             'nom'            => 'required|string|max:150',
             'adresse'        => 'nullable|string|max:255',
-            'telephone'      => 'nullable|string|max:30',
+            'telephone'      => 'nullable|string|max:150',
             'slogan'         => 'nullable|string|max:255',
             'ncc'            => 'nullable|string|max:50',
             'mention_legale' => 'nullable|string',
@@ -56,7 +56,7 @@ class BoutiqueController extends Controller
         $data = $request->validate([
             'nom'            => 'sometimes|string|max:150',
             'adresse'        => 'nullable|string|max:255',
-            'telephone'      => 'nullable|string|max:30',
+            'telephone'      => 'nullable|string|max:150',
             'slogan'         => 'nullable|string|max:255',
             'ncc'            => 'nullable|string|max:50',
             'mention_legale' => 'nullable|string',

@@ -76,7 +76,7 @@ export default function DettesFournisseursPage() {
   ) => {
     setAppros(prev => prev.map(a =>
       a.id === approId
-        ? { ...a, statut_paiement: updated.statut_paiement }
+        ? { ...a, solde_restant: updated.solde_restant, statut_paiement: updated.statut_paiement }
         : a
     ))
     setSoldeCourant(prev => prev ? { ...prev, ...updated } : prev)

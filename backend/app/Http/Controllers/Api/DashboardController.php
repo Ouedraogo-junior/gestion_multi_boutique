@@ -142,7 +142,19 @@ class DashboardController extends Controller
             ->whereIn('mode', ['especes', 'mobile_money'])
             ->sum('montant');
 
-        $totalEncaisseAujourdhui = (float) $regleImmediatAujourdhui + $totalRecouvrement;
+        // Dépôts d'avance du jour — argent réel reçu (espèces/mobile money), pas encore lié à une vente
+        // Exclut les clients marqués "est_boutique" (autre boutique du réseau, pas un vrai client)
+        $avancesDeposeesAujourdhui = DB::table('avances_clients as ac')
+            ->join('clients as c', 'c.id', '=', 'ac.client_id')
+            ->where('ac.boutique_id', $boutique_id)
+            ->where('ac.type', 'depot')
+            ->where('c.est_boutique', false)
+            ->whereDate('ac.created_at', $aujourdhui)
+            ->sum('ac.montant');
+
+        $totalEncaisseAujourdhui = (float) $regleImmediatAujourdhui
+            + $totalRecouvrement
+            + (float) $avancesDeposeesAujourdhui;
 
         // Données communes Admin + Vendeur
         $data = [
@@ -152,6 +164,7 @@ class DashboardController extends Controller
                 'recouvrement'  => $totalRecouvrement,
                 'encaisse_reel' => (float) $totalEncaisseAujourdhui,
                 'regle_sur_ventes'=> (float) $regleImmediatAujourdhui,
+                'avances_deposees'      => (float) $avancesDeposeesAujourdhui,
                 'sans_credit'   => [
                     'count'   => $nbSansCreditAujourdhui,
                     'montant' => (float) $montantSansCreditAujourdhui,
@@ -221,6 +234,39 @@ class DashboardController extends Controller
                 }
             }
 
+            // Créances sur transferts inter-boutiques (marchandise cédée, pas encore payée par la boutique destinataire)
+            $transfertsEnCours = \App\Models\TransfertBoutique::where('boutique_source_id', $boutique_id)
+                ->where('statut', 'valide')
+                ->withSum('paiements', 'montant')
+                ->get()
+                ->map(function ($t) {
+                    $du   = (float) ($t->montant_convenu ?? $t->montant_calcule);
+                    $paye = (float) ($t->paiements_sum_montant ?? 0);
+                    return max(0, $du - $paye);
+                })
+                ->sum();
+
+            // Encaissé aujourd'hui sur transferts inter-boutiques — KPI à part
+            $encaisseTransfertsBoutiquesAujourdhui = DB::table('paiements_transferts_boutiques')
+                ->where('boutique_source_id', $boutique_id)
+                ->whereDate('created_at', $aujourdhui)
+                ->sum('montant');
+
+            
+            // KPI 1 — Montant réglé aujourd'hui via avance sur des transferts
+            $regleAvanceTransfertsAujourdhui = DB::table('avances_clients')
+                ->where('boutique_id', $boutique_id)
+                ->where('type', 'utilisation')
+                ->whereNotNull('transfert_boutique_id')
+                ->whereDate('created_at', $aujourdhui)
+                ->sum('montant');
+
+            // KPI 2 — Solde total des avances des boutiques-clientes (tous soldes confondus, pas juste aujourd'hui)
+            $soldeAvancesBoutiques = \App\Models\Client::where('boutique_id', $boutique_id)
+                ->where('est_boutique', true)
+                ->get()
+                ->sum(fn($c) => $c->solde_avance);
+
             $data['admin'] = [
                 'depenses_mois'   => $depensesMois,
                 'retours_mois'    => $retoursMois,
@@ -229,6 +275,10 @@ class DashboardController extends Controller
                 'depenses_aujourdhui'  => $depensesAujourdhui,   
                 'retours_aujourdhui'   => $retoursAujourdhui,    
                 'benefice_aujourdhui'  => $ventesAujourdhui->sum('total_net') - $retoursAujourdhui - $coutAchatAujourdhui - $depensesAujourdhui,
+                'creances_transferts_boutiques'            => (float) $transfertsEnCours,
+                'encaisse_transferts_boutiques_aujourdhui' => (float) $encaisseTransfertsBoutiquesAujourdhui,
+                'regle_avance_transferts_aujourdhui'       => (float) $regleAvanceTransfertsAujourdhui,
+                'solde_avances_boutiques'                  => (float) $soldeAvancesBoutiques,
             ];
 
             // 5 dernières ventes

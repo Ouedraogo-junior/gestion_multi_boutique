@@ -43,10 +43,10 @@ class RapportController extends Controller
 
         // Ventes validées sur la période
         $ventes = Vente::where('boutique_id', $boutique_id)
-                       ->where('statut', 'validee')
-                       ->whereBetween('date_validation', [$debut, $fin])
-                       ->with(['details', 'paiements'])
-                       ->get();
+                    ->where('statut', 'validee')
+                    ->whereBetween('date_validation', [$debut, $fin])
+                    ->with(['details', 'paiements', 'client:id,nom,prenom'])
+                    ->get();
 
         $totalBrut   = $ventes->sum('total_brut');
         $totalRemise = $ventes->sum('total_remise');
@@ -54,8 +54,8 @@ class RapportController extends Controller
 
         // Retours sur la période
         $retours = Retour::where('boutique_id', $boutique_id)
-                         ->whereBetween('created_at', [$debut, $fin])
-                         ->get();
+                        ->whereBetween('created_at', [$debut, $fin])
+                        ->get();
         $totalRetours = $retours->sum('montant_rembourse');
 
         // Paiements par mode
@@ -77,8 +77,8 @@ class RapportController extends Controller
         }
 
         $depenses     = Depense::where('boutique_id', $boutique_id)
-                               ->whereBetween('date', [$request->debut, $request->fin])
-                               ->sum('montant');
+                            ->whereBetween('date', [$request->debut, $request->fin])
+                            ->sum('montant');
 
         $margeBrute   = $totalNet - $totalRetours - $coutAchat;
         $beneficeNet  = $margeBrute - $depenses;
@@ -90,6 +90,109 @@ class RapportController extends Controller
                 $ecartPrix += ($detail->prix_catalogue - $detail->prix_applique) * $detail->quantite;
             }
         }
+
+        // ── Répartition Réglées / Partielles / Entièrement à crédit ──────────────
+        $venteIdsAvecCredit = $ventes->filter(fn($v) => $v->paiements->contains('mode', 'credit'))->pluck('id');
+        $venteIdsPartielles = $ventes->filter(function ($v) use ($venteIdsAvecCredit) {
+            return $venteIdsAvecCredit->contains($v->id)
+                && $v->paiements->contains(fn($p) => in_array($p->mode, ['especes', 'mobile_money']));
+        })->pluck('id');
+        $venteIdsEntierementCredit = $venteIdsAvecCredit->diff($venteIdsPartielles)->values();
+
+        $nbSansCredit      = $ventes->count() - $venteIdsAvecCredit->count();
+        $montantSansCredit = $ventes->whereNotIn('id', $venteIdsAvecCredit)->sum('total_net');
+
+        $nbPartielles            = $venteIdsPartielles->count();
+        $creditPartielles        = $ventes->whereIn('id', $venteIdsPartielles)
+            ->flatMap(fn($v) => $v->paiements)->where('mode', 'credit')->sum('montant');
+        $regleImmediatPartielles = $ventes->whereIn('id', $venteIdsPartielles)
+            ->flatMap(fn($v) => $v->paiements)->whereIn('mode', ['especes', 'mobile_money'])->sum('montant');
+
+        $nbEntierementCredit      = $venteIdsEntierementCredit->count();
+        $montantEntierementCredit = $ventes->whereIn('id', $venteIdsEntierementCredit)
+            ->flatMap(fn($v) => $v->paiements)->where('mode', 'credit')->sum('montant');
+
+        // ── Argent réellement encaissé sur la période ─────────────────────────────
+        $regleSurVentesPeriode = (float) ($parMode['especes'] ?? 0) + (float) ($parMode['mobile_money'] ?? 0);
+
+        $recouvrementVentePeriode = DB::table('paiements_clients')
+            ->where('boutique_id', $boutique_id)
+            ->whereBetween('created_at', [$debut, $fin])
+            ->sum('montant');
+
+        $recouvrementDetteInitialePeriode = DB::table('dette_initiale_paiements')
+            ->where('boutique_id', $boutique_id)
+            ->whereBetween('created_at', [$debut, $fin])
+            ->sum('montant');
+
+        $recouvrementPeriode = (float) $recouvrementVentePeriode + (float) $recouvrementDetteInitialePeriode;
+
+        $avancesDeposeesPeriode = DB::table('avances_clients as ac')
+            ->join('clients as c', 'c.id', '=', 'ac.client_id')
+            ->where('ac.boutique_id', $boutique_id)
+            ->where('ac.type', 'depot')
+            ->where('c.est_boutique', false)
+            ->whereBetween('ac.created_at', [$debut, $fin])
+            ->sum('ac.montant');
+
+        $encaisseReelPeriode = $regleSurVentesPeriode + $recouvrementPeriode + (float) $avancesDeposeesPeriode;
+
+        // ── Transferts inter-boutiques ────────────────────────────────────────────
+        $creancesTransfertsActuelles = \App\Models\TransfertBoutique::where('boutique_source_id', $boutique_id)
+            ->where('statut', 'valide')
+            ->withSum('paiements', 'montant')
+            ->get()
+            ->sum(function ($t) {
+                $du   = (float) ($t->montant_convenu ?? $t->montant_calcule);
+                $paye = (float) ($t->paiements_sum_montant ?? 0);
+                return max(0, $du - $paye);
+            });
+
+        $transfertsCreesPeriode = \App\Models\TransfertBoutique::where('boutique_source_id', $boutique_id)
+            ->whereBetween('created_at', [$debut, $fin])
+            ->get()
+            ->sum(fn($t) => (float) ($t->montant_convenu ?? $t->montant_calcule));
+
+        $encaisseTransfertsPeriode = DB::table('paiements_transferts_boutiques')
+            ->where('boutique_source_id', $boutique_id)
+            ->whereIn('mode', ['especes', 'mobile_money'])
+            ->whereBetween('created_at', [$debut, $fin])
+            ->sum('montant');
+
+        $regleAvanceTransfertsPeriode = DB::table('paiements_transferts_boutiques')
+            ->where('boutique_source_id', $boutique_id)
+            ->where('mode', 'avance_client')
+            ->whereBetween('created_at', [$debut, $fin])
+            ->sum('montant');
+
+        // ── Détail des ventes de la période ───────────────────────────────────────
+        $venteIds = $ventes->pluck('id');
+        $rembourseParVente = DB::table('paiements_clients')
+            ->whereIn('vente_id', $venteIds)
+            ->groupBy('vente_id')
+            ->selectRaw('vente_id, SUM(montant) as total')
+            ->pluck('total', 'vente_id');
+
+        $detailVentes = $ventes->map(function ($v) use ($rembourseParVente) {
+            $credit    = (float) $v->paiements->where('mode', 'credit')->sum('montant');
+            $cash      = (float) $v->paiements->whereIn('mode', ['especes', 'mobile_money'])->sum('montant');
+            $rembourse = (float) ($rembourseParVente[$v->id] ?? 0);
+            $resteDu   = max(0, $credit - $rembourse);
+            $categorie = $credit == 0 ? 'reglee' : ($cash > 0 ? 'partielle' : 'credit_total');
+
+            return [
+                'id'              => $v->id,
+                'numero_facture'  => $v->numero_facture,
+                'client_nom'      => $v->client ? trim(($v->client->prenom ?? '') . ' ' . $v->client->nom) : null,
+                'date_validation' => $v->date_validation,
+                'total_net'       => (float) $v->total_net,
+                'categorie'       => $categorie,
+                'credit_accorde'  => $credit,
+                'cash'            => $cash,
+                'rembourse'       => $rembourse,
+                'reste_du'        => $resteDu,
+            ];
+        })->sortByDesc('date_validation')->values();
 
         return response()->json([
             'periode'  => ['debut' => $request->debut, 'fin' => $request->fin],
@@ -108,11 +211,37 @@ class RapportController extends Controller
                 'benefice_net' => $beneficeNet,
             ],
             'ventes' => [
-                'count_validees'  => $ventes->count(),
-                'count_brouillons'=> Vente::where('boutique_id', $boutique_id)
-                                          ->where('statut', 'brouillon')
-                                          ->count(),
-                'par_mode'        => $parMode,
+                'count_validees'     => $ventes->count(),
+                'count_brouillons'   => Vente::where('boutique_id', $boutique_id)
+                                            ->where('statut', 'brouillon')
+                                            ->count(),
+                'par_mode'           => $parMode,
+                'sans_credit'        => [
+                    'count'   => $nbSansCredit,
+                    'montant' => (float) $montantSansCredit,
+                ],
+                'partielles'         => [
+                    'count'          => $nbPartielles,
+                    'montant_regle'  => (float) $regleImmediatPartielles,
+                    'montant_credit' => (float) $creditPartielles,
+                ],
+                'entierement_credit' => [
+                    'count'   => $nbEntierementCredit,
+                    'montant' => (float) $montantEntierementCredit,
+                ],
+                'detail'             => $detailVentes,
+            ],
+            'encaisse' => [
+                'regle_sur_ventes' => $regleSurVentesPeriode,
+                'recouvrement'     => $recouvrementPeriode,
+                'avances_deposees' => (float) $avancesDeposeesPeriode,
+                'total'            => $encaisseReelPeriode,
+            ],
+            'transferts_boutiques' => [
+                'creances_actuelles'   => (float) $creancesTransfertsActuelles,
+                'crees_periode'        => (float) $transfertsCreesPeriode,
+                'encaisse_periode'     => (float) $encaisseTransfertsPeriode,
+                'regle_avance_periode' => (float) $regleAvanceTransfertsPeriode,
             ],
         ]);
     }
@@ -150,8 +279,13 @@ class RapportController extends Controller
     // -------------------------------------------------------
     // Rapport dettes clients
     // -------------------------------------------------------
-   public function dettes(int $boutique_id): JsonResponse
+   public function dettes(Request $request, int $boutique_id): JsonResponse
     {
+        $request->validate([
+            'debut' => 'required|date',
+            'fin'   => 'required|date|after_or_equal:debut',
+        ]);
+
         $dettes = DB::select("
             SELECT
                 c.id AS client_id,
@@ -194,10 +328,40 @@ class RapportController extends Controller
             ORDER BY solde_dette DESC
         ", [$boutique_id, $boutique_id, $boutique_id, $boutique_id, $boutique_id]);
 
+        // Historique des paiements reçus sur la période choisie — flux, pas un solde
+        $debut = $request->debut . ' 00:00:00';
+        $fin   = $request->fin   . ' 23:59:59';
+
+        $paiementsPeriode = DB::select("
+            SELECT * FROM (
+                SELECT
+                    pc.id, pc.client_id, c.nom, c.prenom, pc.montant, pc.mode, pc.created_at AS date,
+                    'vente' AS source, v.numero_facture
+                FROM paiements_clients pc
+                JOIN clients c ON c.id = pc.client_id
+                JOIN ventes v ON v.id = pc.vente_id
+                WHERE pc.boutique_id = ?
+
+                UNION ALL
+
+                SELECT
+                    dip.id, dip.client_id, c.nom, c.prenom, dip.montant, dip.mode, dip.created_at AS date,
+                    'dette_initiale' AS source, NULL AS numero_facture
+                FROM dette_initiale_paiements dip
+                JOIN clients c ON c.id = dip.client_id
+                WHERE dip.boutique_id = ?
+            ) sub
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date DESC
+        ", [$boutique_id, $boutique_id, $debut, $fin]);
+
         return response()->json([
-            'boutique_id'  => $boutique_id,
-            'total_dettes' => collect($dettes)->sum('solde_dette'),
-            'clients'      => $dettes,
+            'boutique_id'             => $boutique_id,
+            'total_dettes'            => collect($dettes)->sum('solde_dette'),
+            'clients'                 => $dettes,
+            'periode'                 => ['debut' => $request->debut, 'fin' => $request->fin],
+            'total_paiements_periode' => collect($paiementsPeriode)->sum('montant'),
+            'paiements_periode'       => $paiementsPeriode,
         ]);
     }
 
@@ -360,7 +524,7 @@ class RapportController extends Controller
         $data = match($request->type) {
             'ca'      => $this->ca($fakeRequest, $boutique_id)->getData(true),
             'stock'   => $this->stock($fakeRequest, $boutique_id)->getData(true),
-            'dettes'  => $this->dettes($boutique_id)->getData(true),
+            'dettes'  => $this->dettes($fakeRequest, $boutique_id)->getData(true),
             'depenses'=> $this->depenses($fakeRequest, $boutique_id)->getData(true),
         };
 

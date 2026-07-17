@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, PackagePlus } from 'lucide-react'
+import { ArrowLeft, Pencil, PackagePlus, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
@@ -9,6 +9,9 @@ import type { Produit } from '@/api/produits'
 import { formatMontant } from '@/utils/format'
 import StockBadge from './components/StockBadge'
 import EntreeStockForm from './components/EntreeStockForm'
+import AjustementStockForm from './components/AjustementStockForm'
+import { useAuth } from '@/hooks/useAuth'
+import { ROLES } from '@/utils/constants'
 
 export default function ProduitDetailPage() {
   const { boutiqueId, produitId } = useParams()
@@ -17,6 +20,9 @@ export default function ProduitDetailPage() {
 
   const [produit, setProduit]       = useState<Produit | null>(null)
   const [stockDialog, setStockDialog] = useState(false)
+  const [ajustementDialog, setAjustementDialog] = useState(false)
+  const { user } = useAuth()
+  const isAdmin = user?.role === ROLES.ADMIN_BOUTIQUE || user?.role === ROLES.SUPER_ADMIN
   const [loading, setLoading]       = useState(true)
 
   const load = async () => {
@@ -57,6 +63,17 @@ export default function ProduitDetailPage() {
             <PackagePlus size={16} className="mr-1.5" />
             Entrée stock
           </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAjustementDialog(true)}
+              className="border-gray-200 text-amber-600 hover:bg-amber-50"
+            >
+              <Wrench size={16} className="mr-1.5" />
+              Corriger le stock
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={() => navigate(`/boutiques/${id}/produits/${produit.id}/modifier`)}
@@ -185,6 +202,19 @@ export default function ProduitDetailPage() {
             boutiqueId={id}
             variantes={produit.variantes ?? []}
             onSuccess={() => { setStockDialog(false); load() }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={ajustementDialog} onOpenChange={setAjustementDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Corriger le stock — {produit.designation}</DialogTitle>
+          </DialogHeader>
+          <AjustementStockForm
+            boutiqueId={id}
+            variantes={produit.variantes ?? []}
+            onSuccess={() => { setAjustementDialog(false); load() }}
           />
         </DialogContent>
       </Dialog>

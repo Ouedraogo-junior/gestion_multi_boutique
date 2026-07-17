@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\FournisseurController;
 use App\Http\Controllers\Api\ApprovisionnementController;
 use App\Http\Controllers\Api\PaiementFournisseurController;
 use App\Http\Controllers\Api\ActiviteController;
+use App\Http\Controllers\Api\TransfertBoutiqueController;
+use App\Http\Controllers\Api\PaiementTransfertBoutiqueController;
 
 
 // Auth publique
@@ -50,6 +52,9 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
 
         // Boutique
         Route::put('/boutiques/{id}',                   [BoutiqueController::class, 'update']);
+
+        // Produits
+        Route::post('/boutiques/{boutique_id}/stock/ajustement', [ProduitController::class, 'ajusterStock']);
 
         // Paramètres
         Route::get('/boutiques/{boutique_id}/parametres',         [ParametreController::class, 'index']);
@@ -156,6 +161,17 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
 
         // Activités
         Route::get('/boutiques/{boutique_id}/activites', [ActiviteController::class, 'index']);
+
+        // Transferts entre boutiques
+        Route::get('/boutiques/{boutique_id}/transferts-boutiques/boutiques-disponibles', [TransfertBoutiqueController::class, 'boutiquesDisponibles']);
+        Route::get('/boutiques/{boutique_id}/transferts-boutiques/avance-disponible/{boutique_destination_id}', [TransfertBoutiqueController::class, 'avanceDisponiblePourBoutique']);
+        Route::get('/boutiques/{boutique_id}/transferts-boutiques', [TransfertBoutiqueController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/transferts-boutiques', [TransfertBoutiqueController::class, 'store']);
+        Route::get('/boutiques/{boutique_id}/transferts-boutiques/{id}/avance-disponible', [TransfertBoutiqueController::class, 'avanceDisponible']);
+        Route::get('/boutiques/{boutique_id}/transferts-boutiques/{id}', [TransfertBoutiqueController::class, 'show']);
+
+        Route::get('/boutiques/{boutique_id}/transferts-boutiques/{transfert_id}/paiements', [PaiementTransfertBoutiqueController::class, 'index']);
+        Route::post('/boutiques/{boutique_id}/transferts-boutiques/{transfert_id}/paiements', [PaiementTransfertBoutiqueController::class, 'store']);
 
     });
 

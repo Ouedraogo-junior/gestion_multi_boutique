@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Info, ChevronRight, ChevronLeft, ShoppingBag, FileText, Wallet, ReceiptText } from 'lucide-react'
+import { Info, ChevronRight, ChevronLeft, ShoppingBag, FileText, Wallet, ReceiptText, PiggyBank } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,10 +16,12 @@ const MODE_LABELS: Record<string, string> = {
 }
 
 const TYPE_BADGES: Record<ActiviteItem['type'], { icon: typeof ShoppingBag; label: string; className: string }> = {
-  vente:                   { icon: ShoppingBag,  label: 'Vente',                     className: 'bg-gray-100 text-gray-600' },
-  dette_initiale:          { icon: FileText,     label: 'Dette antérieure ajoutée',  className: 'bg-red-50 text-[#E8314A]' },
-  paiement_vente:          { icon: Wallet,       label: 'Remboursement vente',       className: 'bg-[#D4F0E2] text-[#145C38]' },
+  vente:                   { icon: ShoppingBag,  label: 'Vente',                          className: 'bg-gray-100 text-gray-600' },
+  dette_initiale:          { icon: FileText,     label: 'Dette antérieure ajoutée',       className: 'bg-red-50 text-[#E8314A]' },
+  paiement_vente:          { icon: Wallet,       label: 'Remboursement vente',            className: 'bg-[#D4F0E2] text-[#145C38]' },
   paiement_dette_initiale: { icon: ReceiptText,  label: 'Remboursement dette antérieure', className: 'bg-[#D4F0E2] text-[#145C38]' },
+  avance_depot:            { icon: PiggyBank,    label: 'Avance déposée',                 className: 'bg-blue-50 text-[#29ABE2]' },
+  avance_utilisation:      { icon: PiggyBank,    label: 'Avance utilisée',                className: 'bg-gray-100 text-gray-600' },
 }
 
 function getExplication(item: ActiviteItem): string {
@@ -50,6 +52,10 @@ function getExplication(item: ActiviteItem): string {
       return `Remboursement de ${formatMontant(item.montant)} reçu (${MODE_LABELS[item.mode ?? ''] ?? item.mode}) sur la facture ${item.numero_facture}.`
     case 'paiement_dette_initiale':
       return `Remboursement de ${formatMontant(item.montant)} reçu (${MODE_LABELS[item.mode ?? ''] ?? item.mode}) sur une dette antérieure.`
+    case 'avance_depot':
+      return `Dépôt d'avance de ${formatMontant(item.montant)} reçu (${MODE_LABELS[item.mode ?? ''] ?? item.mode}). Cet argent est en caisse, mais n'entre pas dans le CA tant qu'il n'est pas utilisé pour un achat.`
+    case 'avance_utilisation':
+      return `${formatMontant(item.montant)} de l'avance du client utilisés pour régler la facture ${item.numero_facture}. Ce montant entre dans le CA de cette vente.`
     default:
       return ''
   }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, CreditCard, Printer, User, Phone, MapPin,
-  FileText, ChevronRight, Loader2, Wallet, ReceiptText
+  FileText, ChevronRight, Loader2, Wallet, ReceiptText, MoreVertical
 } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
@@ -42,17 +42,31 @@ export default function ClientDetailPage() {
   const [paiementOpen, setPaiementOpen] = useState(false)
   const [dernierPaiement, setDernierPaiement] = useState<{
     montant: number
-    mode: 'especes' | 'mobile_money'
+    mode: 'especes' | 'mobile_money' | 'avance_client'
     date: string
     vente: { numero_facture: string; total_net: number; solde_restant: number }
   } | null>(null)
+
+  // Menu d'actions secondaires (regroupe avance, dette antérieure, réimpression)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+        setActionsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const recuRef = useRef<HTMLDivElement>(null)
   const [recuReady, setRecuReady] = useState(false)
 
   const handlePrint = useReactToPrint({
     contentRef: recuRef,
-    pageStyle: `@page { size: A5; margin: 10mm; } body { margin: 0; }`,
+    pageStyle: `@page { size: A4; margin: 10mm; } body { margin: 0; }`,
     onAfterPrint: () => setRecuReady(false),
   })
 
@@ -148,37 +162,48 @@ export default function ClientDetailPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {dernierPaiement && (
+          {/* Menu actions secondaires — regroupe ce qui n'est pas l'action principale */}
+          <div className="relative" ref={actionsRef}>
             <Button
               variant="outline"
               size="sm"
-              onClick={lancerImpression}
-              className="border-gray-200 text-gray-600 hover:text-[#1A7A4A]"
+              onClick={() => setActionsOpen(o => !o)}
+              className="border-gray-200 text-gray-600"
             >
-              <Printer size={15} className="mr-1.5" />
-              Dernier reçu
+              <MoreVertical size={15} className="mr-1.5" />
+              Actions
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAvanceDialogOpen(true)}
-            className="border-gray-200 text-gray-600 hover:text-[#1A7A4A]"
-          >
-            <Wallet size={15} className="mr-1.5" />
-            Ajouter une avance
-          </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDetteInitialeDialogOpen(true)}
-            className="border-gray-200 text-gray-600 hover:text-[#E8314A]"
-          >
-            <ReceiptText size={15} className="mr-1.5" />
-            Dette antérieure
-          </Button>
+            {actionsOpen && (
+              <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+                {dernierPaiement && (
+                  <button
+                    onClick={() => { lancerImpression(); setActionsOpen(false) }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-[#F4F6F5] transition-colors text-left"
+                  >
+                    <Printer size={15} />
+                    Dernier reçu
+                  </button>
+                )}
+                <button
+                  onClick={() => { setAvanceDialogOpen(true); setActionsOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-[#F4F6F5] transition-colors text-left"
+                >
+                  <Wallet size={15} />
+                  Ajouter une avance
+                </button>
+                <button
+                  onClick={() => { setDetteInitialeDialogOpen(true); setActionsOpen(false) }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-[#F4F6F5] transition-colors text-left"
+                >
+                  <ReceiptText size={15} />
+                  Dette antérieure
+                </button>
+              </div>
+            )}
+          </div>
 
+          {/* Action principale — mise en avant seule */}
           {totalDette > 0 && (
             <Button
               size="sm"
@@ -281,44 +306,44 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      {/*  */}
-    <div className="bg-white rounded-xl border border-gray-200">
-      <div className="px-5 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-medium text-[#1C1C1C]">Dettes antérieures</h2>
-      </div>
-      {dettesInitiales.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm">
-          Aucune dette antérieure en cours
+      {/* Dettes antérieures */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-medium text-[#1C1C1C]">Dettes antérieures</h2>
         </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Date</th>
-                <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Montant initial</th>
-                <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Déjà payé</th>
-                <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Solde restant</th>
-                <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dettesInitiales.map(d => (
-                <tr key={d.dette_initiale_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
-                  <td className="py-3 px-5 text-sm text-gray-500">{formatDate(d.date)}</td>
-                  <td className="py-3 px-5 text-sm text-gray-700 text-right">{formatMontant(d.montant_initial)}</td>
-                  <td className="py-3 px-5 text-sm text-[#1A7A4A] text-right">{formatMontant(d.total_paye)}</td>
-                  <td className="py-3 px-5 text-right">
-                    <span className="text-sm font-medium text-[#E8314A]">{formatMontant(d.solde_restant)}</span>
-                  </td>
-                  <td className="py-3 px-5 text-sm text-gray-400 italic">{d.note ?? '—'}</td>
+        {dettesInitiales.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">
+            Aucune dette antérieure en cours
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Date</th>
+                  <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Montant initial</th>
+                  <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Déjà payé</th>
+                  <th className="text-right py-3 px-5 text-xs text-gray-500 font-medium">Solde restant</th>
+                  <th className="text-left py-3 px-5 text-xs text-gray-500 font-medium">Note</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+              </thead>
+              <tbody>
+                {dettesInitiales.map(d => (
+                  <tr key={d.dette_initiale_id} className="border-b border-gray-100 hover:bg-[#F4F6F5] transition-colors">
+                    <td className="py-3 px-5 text-sm text-gray-500">{formatDate(d.date)}</td>
+                    <td className="py-3 px-5 text-sm text-gray-700 text-right">{formatMontant(d.montant_initial)}</td>
+                    <td className="py-3 px-5 text-sm text-[#1A7A4A] text-right">{formatMontant(d.total_paye)}</td>
+                    <td className="py-3 px-5 text-right">
+                      <span className="text-sm font-medium text-[#E8314A]">{formatMontant(d.solde_restant)}</span>
+                    </td>
+                    <td className="py-3 px-5 text-sm text-gray-400 italic">{d.note ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Historique des avances */}
       <div className="bg-white rounded-xl border border-gray-200">
@@ -461,7 +486,7 @@ export default function ClientDetailPage() {
         client={paiementOpen ? client : null}
         onClose={() => {
           setPaiementOpen(false)
-          load()  // ← recharger après fermeture complète
+          load()
         }}
         onPaid={() => {
           // Ne pas appeler load() ici — laisser le dialog gérer l'impression d'abord
@@ -484,7 +509,7 @@ export default function ClientDetailPage() {
       />
 
       {/* Zone impression cachée */}
-      <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '148mm', zIndex: -1 }}>
+      <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '210mm', zIndex: -1 }}>
         {recuReady && dernierPaiement && boutiqueActive && (
           <RecuPaiementImprimable
             ref={recuRef}

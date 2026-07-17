@@ -39,6 +39,7 @@ class ClientController extends Controller
             'telephone' => 'nullable|string|max:30',
             'adresse'   => 'nullable|string|max:255',
             'notes'     => 'nullable|string',
+            'est_boutique' => 'sometimes|boolean',
         ]);
 
         $data['boutique_id'] = $boutique_id;
@@ -72,6 +73,7 @@ class ClientController extends Controller
             'telephone' => 'nullable|string|max:30',
             'adresse'   => 'nullable|string|max:255',
             'notes'     => 'nullable|string',
+            'est_boutique' => 'sometimes|boolean',
         ]);
 
         $client->update($data);
@@ -135,7 +137,7 @@ class ClientController extends Controller
         $data = $request->validate([
             'vente_id'     => 'required|exists:ventes,id',
             'montant'      => 'required|numeric|min:1',
-            'mode'         => 'required|in:especes,mobile_money',
+            'mode'         => 'required|in:especes,mobile_money,avance_client',
             'operateur_id' => 'nullable|exists:referentiels,id',
             'note'         => 'nullable|string',
             'date'         => 'required|date',
@@ -143,9 +145,9 @@ class ClientController extends Controller
 
         // Vérifier que la vente appartient bien à ce client et à cette boutique
         $vente = \App\Models\Vente::where('boutique_id', $boutique_id)
-                                   ->where('client_id', $id)
-                                   ->where('statut', 'validee')
-                                   ->findOrFail($data['vente_id']);
+                                ->where('client_id', $id)
+                                ->where('statut', 'validee')
+                                ->findOrFail($data['vente_id']);
 
         // Calculer le solde restant pour cette vente
         $totalCredit = $vente->paiements()->where('mode', 'credit')->sum('montant');
@@ -159,28 +161,59 @@ class ClientController extends Controller
             ], 422);
         }
 
-        $paiement = PaiementClient::create([
-            'boutique_id'  => $boutique_id,
-            'client_id'    => $id,
-            'vente_id'     => $vente->id,
-            'montant'      => $data['montant'],
-            'mode'         => $data['mode'],
-            'operateur_id' => $data['operateur_id'] ?? null,
-            'user_id'      => auth()->id(),
-            'note'         => $data['note'] ?? null,
-            'date'         => $data['date'],
-            'created_at'   => now(),
-        ]);
+        // Vérification spécifique au paiement par avance
+        if ($data['mode'] === 'avance_client' && $data['montant'] > $client->solde_avance) {
+            return response()->json([
+                'message'      => 'Solde d\'avance insuffisant',
+                'solde_avance' => $client->solde_avance,
+            ], 422);
+        }
 
-        $request->auditAction = 'dette_encaissee';
-        $request->auditModule = 'clients';
-        $request->auditDetails = [
-            'client_id' => $id,
-            'vente_id'  => $vente->id,
-            'montant'   => $data['montant'],
-        ];
+        DB::beginTransaction();
+        try {
+            $paiement = PaiementClient::create([
+                'boutique_id'  => $boutique_id,
+                'client_id'    => $id,
+                'vente_id'     => $vente->id,
+                'montant'      => $data['montant'],
+                'mode'         => $data['mode'],
+                'operateur_id' => $data['operateur_id'] ?? null,
+                'user_id'      => auth()->id(),
+                'note'         => $data['note'] ?? null,
+                'date'         => $data['date'],
+                'created_at'   => now(),
+            ]);
 
-        return response()->json($paiement, 201);
+            if ($data['mode'] === 'avance_client') {
+                AvanceClient::create([
+                    'boutique_id' => $boutique_id,
+                    'client_id'   => $id,
+                    'type'        => 'utilisation',
+                    'montant'     => $data['montant'],
+                    'vente_id'    => $vente->id,
+                    'user_id'     => auth()->id(),
+                    'note'        => 'Utilisée pour régler la dette de la vente ' . $vente->numero_facture,
+                    'created_at'  => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            $request->auditAction = 'dette_encaissee';
+            $request->auditModule = 'clients';
+            $request->auditDetails = [
+                'client_id' => $id,
+                'vente_id'  => $vente->id,
+                'montant'   => $data['montant'],
+                'mode'      => $data['mode'],
+            ];
+
+            return response()->json($paiement, 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur : ' . $e->getMessage()], 500);
+        }
     }
 
     public function paiements(int $boutique_id, int $id): JsonResponse
@@ -412,11 +445,11 @@ class ClientController extends Controller
 
     public function storePaiementDetteInitiale(Request $request, int $boutique_id, int $id, int $dette_id): JsonResponse
     {
-        Client::where('boutique_id', $boutique_id)->findOrFail($id);
+        $client = Client::where('boutique_id', $boutique_id)->findOrFail($id);
 
         $data = $request->validate([
             'montant'      => 'required|numeric|min:1',
-            'mode'         => 'required|in:especes,mobile_money',
+            'mode'         => 'required|in:especes,mobile_money,avance_client',
             'operateur_id' => 'nullable|exists:referentiels,id',
             'note'         => 'nullable|string',
             'date'         => 'required|date',
@@ -441,6 +474,14 @@ class ClientController extends Controller
                 ], 422);
             }
 
+            if ($data['mode'] === 'avance_client' && $data['montant'] > $client->solde_avance) {
+                DB::rollBack();
+                return response()->json([
+                    'message'      => 'Solde d\'avance insuffisant',
+                    'solde_avance' => $client->solde_avance,
+                ], 422);
+            }
+
             $paiement = DetteInitialePaiement::create([
                 'boutique_id'       => $boutique_id,
                 'dette_initiale_id' => $dette->id,
@@ -454,11 +495,24 @@ class ClientController extends Controller
                 'created_at'        => now(),
             ]);
 
+            if ($data['mode'] === 'avance_client') {
+                AvanceClient::create([
+                    'boutique_id'       => $boutique_id,
+                    'client_id'         => $id,
+                    'type'              => 'utilisation',
+                    'montant'           => $data['montant'],
+                    'dette_initiale_id' => $dette->id,
+                    'user_id'           => auth()->id(),
+                    'note'              => 'Utilisée pour régler la dette antérieure',
+                    'created_at'        => now(),
+                ]);
+            }
+
             DB::commit();
 
             $request->auditAction  = 'dette_initiale_encaissee';
             $request->auditModule  = 'clients';
-            $request->auditDetails = ['client_id' => $id, 'dette_initiale_id' => $dette->id, 'montant' => $data['montant']];
+            $request->auditDetails = ['client_id' => $id, 'dette_initiale_id' => $dette->id, 'montant' => $data['montant'], 'mode' => $data['mode']];
 
             return response()->json($paiement, 201);
 

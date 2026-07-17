@@ -57,8 +57,10 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
         $couts  = $this->data['couts'] ?? [];
         $ventes = $this->data['ventes'] ?? [];
         $mode   = $ventes['par_mode'] ?? [];
+        $encaisse    = $this->data['encaisse'] ?? [];
+        $transferts  = $this->data['transferts_boutiques'] ?? [];
 
-        return [
+        $rows = [
             ['CA Brut',          $ca['brut']          ?? 0],
             ['Retours',          $ca['retours']        ?? 0],
             ['CA Net',           $ca['net']            ?? 0],
@@ -76,6 +78,38 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
             ['Mobile Money',     $mode['mobile_money'] ?? 0],
             ['Crédit',           $mode['credit']       ?? 0],
         ];
+
+        if (isset($ventes['sans_credit'])) {
+            $rows = array_merge($rows, [
+                ['---', '---'],
+                ['Réglées intégralement',              $ventes['sans_credit']['montant']         ?? 0],
+                ['Règlements partiels (réglé comptant)', $ventes['partielles']['montant_regle']    ?? 0],
+                ['Règlements partiels (laissé à crédit)', $ventes['partielles']['montant_credit']  ?? 0],
+                ['Entièrement à crédit',               $ventes['entierement_credit']['montant']   ?? 0],
+            ]);
+        }
+
+        if (!empty($encaisse)) {
+            $rows = array_merge($rows, [
+                ['---', '---'],
+                ['Réglé comptant sur ventes',  $encaisse['regle_sur_ventes'] ?? 0],
+                ['Recouvrement de dettes',     $encaisse['recouvrement']    ?? 0],
+                ['Avances déposées',           $encaisse['avances_deposees'] ?? 0],
+                ['Total encaissé',             $encaisse['total']            ?? 0],
+            ]);
+        }
+
+        if (!empty($transferts)) {
+            $rows = array_merge($rows, [
+                ['---', '---'],
+                ['Transferts — dû par les boutiques (actuel)', $transferts['creances_actuelles']   ?? 0],
+                ['Transferts — créés sur la période',           $transferts['crees_periode']        ?? 0],
+                ['Transferts — encaissé sur la période',        $transferts['encaisse_periode']      ?? 0],
+                ['Transferts — dont réglé via avance',          $transferts['regle_avance_periode']  ?? 0],
+            ]);
+        }
+
+        return $rows;
     }
 
     private function rowsStock(): array
@@ -93,13 +127,29 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
 
     private function rowsDettes(): array
     {
-        return collect($this->data['clients'] ?? [])->map(fn($c) => [
+        $rows = collect($this->data['clients'] ?? [])->map(fn($c) => [
             trim(($c['prenom'] ?? '') . ' ' . ($c['nom'] ?? '')),
             $c['telephone']    ?? '—',
             $c['total_credit'] ?? 0,
             $c['total_paye']   ?? 0,
             $c['solde_dette']  ?? 0,
         ])->toArray();
+
+        if (!empty($this->data['paiements_periode'])) {
+            $rows[] = ['---', '---', '---', '---', '---'];
+            $rows[] = ['Historique des paiements de la période', '', '', '', ''];
+            foreach ($this->data['paiements_periode'] as $p) {
+                $rows[] = [
+                    trim(($p['prenom'] ?? '') . ' ' . ($p['nom'] ?? '')),
+                    \Carbon\Carbon::parse($p['date'])->format('d/m/Y'),
+                    $p['mode'] === 'especes' ? 'Espèces' : 'Mobile Money',
+                    $p['source'] === 'vente' ? ($p['numero_facture'] ?? '—') : 'Dette antérieure',
+                    $p['montant'] ?? 0,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     private function rowsDepenses(): array
