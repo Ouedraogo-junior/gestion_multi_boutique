@@ -25,6 +25,7 @@
         <tr><td>Ventes validées</td><td class="right">{{ $data['ventes']['count_validees'] }}</td></tr>
         <tr><td>Espèces</td><td class="right">{{ number_format($data['ventes']['par_mode']['especes'], 0, ',', ' ') }} FCFA</td></tr>
         <tr><td>Mobile Money</td><td class="right">{{ number_format($data['ventes']['par_mode']['mobile_money'], 0, ',', ' ') }} FCFA</td></tr>
+        <tr><td>Avance client</td><td class="right">{{ number_format($data['ventes']['par_mode']['avance_client'] ?? 0, 0, ',', ' ') }} FCFA</td></tr>
         <tr><td>Crédit</td><td class="right">{{ number_format($data['ventes']['par_mode']['credit'], 0, ',', ' ') }} FCFA</td></tr>
     </table>
 
@@ -100,5 +101,108 @@
             @endforeach
         </tbody>
     </table>
+    @endif
+
+    @if(!empty($data['ventes']['detail']))
+        @php
+            $sommeVentes = collect($data['ventes']['detail'])->sum('total_net');
+        @endphp
+
+        <table style="margin-top:4px;">
+            <tr class="total">
+                <td>Somme des montants de toutes les ventes ci-dessus</td>
+                <td class="right">{{ number_format($sommeVentes, 0, ',', ' ') }} FCFA</td>
+            </tr>
+        </table>
+        <p style="color:#6B7280; font-size:10px; margin-top:2px;">
+            Ce montant correspond à l'addition de la colonne "Total" de chaque vente listée dans le tableau ci-dessus.
+        </p>
+
+        <h3>Du chiffre d'affaires au bénéfice net — calcul détaillé</h3>
+        <table>
+            <tr>
+                <td>Somme des ventes de la période (voir ci-dessus)</td>
+                <td class="right">{{ number_format($sommeVentes, 0, ',', ' ') }} FCFA</td>
+            </tr>
+            <tr>
+                <td>− Retours de la période</td>
+                <td class="right red">- {{ number_format($data['ca']['retours'], 0, ',', ' ') }} FCFA</td>
+            </tr>
+            <tr class="total">
+                <td>= Chiffre d'affaires net</td>
+                <td class="right">{{ number_format($data['ca']['net'], 0, ',', ' ') }} FCFA</td>
+            </tr>
+            <tr>
+                <td>− Coût d'achat des produits vendus</td>
+                <td class="right red">- {{ number_format($data['couts']['achat'], 0, ',', ' ') }} FCFA</td>
+            </tr>
+            <tr class="total">
+                <td>= Marge brute</td>
+                <td class="right">{{ number_format($data['couts']['marge_brute'], 0, ',', ' ') }} FCFA</td>
+            </tr>
+            <tr>
+                <td>− Dépenses de fonctionnement</td>
+                <td class="right red">- {{ number_format($data['couts']['depenses'], 0, ',', ' ') }} FCFA</td>
+            </tr>
+            <tr class="total" style="border-top: 2px solid #000;">
+                <td><strong>= Bénéfice net</strong></td>
+                <td class="right {{ $data['couts']['benefice_net'] >= 0 ? 'green' : 'red' }}">
+                    <strong>{{ number_format($data['couts']['benefice_net'], 0, ',', ' ') }} FCFA</strong>
+                </td>
+            </tr>
+        </table>
+    @endif
+
+    @if(!empty($data['ventes']['articles_vendus']))
+        @php
+            $totalQteArticles       = collect($data['ventes']['articles_vendus'])->sum('quantite');
+            $totalMontantArticles   = collect($data['ventes']['articles_vendus'])->sum('montant');
+            $totalCoutAchatArticles = collect($data['ventes']['articles_vendus'])->sum(fn($a) => $a['prix_achat'] * $a['quantite']);
+        @endphp
+        <h3>Détail des articles vendus</h3>
+        <p style="color:#6B7280; font-size:10px; margin-bottom:8px;">
+            Chaque article vendu sur la période, avec son prix d'achat, son prix de vente catalogue et le prix réellement appliqué à la vente.
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Facture</th>
+                    <th>Produit</th>
+                    <th class="right">Qté</th>
+                    <th class="right">Prix d'achat</th>
+                    <th class="right">Prix de vente</th>
+                    <th class="right">Prix appliqué</th>
+                    <th class="right">Montant</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($data['ventes']['articles_vendus'] as $a)
+                <tr>
+                    <td>{{ \Carbon\Carbon::parse($a['date_validation'])->format('d/m/Y') }}</td>
+                    <td>{{ $a['numero_facture'] }}</td>
+                    <td>{{ $a['produit'] }}</td>
+                    <td class="right">{{ $a['quantite'] }}</td>
+                    <td class="right">{{ number_format($a['prix_achat'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($a['prix_vente'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($a['prix_applique'], 0, ',', ' ') }}</td>
+                    <td class="right">{{ number_format($a['montant'], 0, ',', ' ') }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+            <tfoot>
+                <tr class="total">
+                    <td colspan="3">Total</td>
+                    <td class="right">{{ $totalQteArticles }}</td>
+                    <td class="right">{{ number_format($totalCoutAchatArticles, 0, ',', ' ') }}</td>
+                    <td colspan="2"></td>
+                    <td class="right">{{ number_format($totalMontantArticles, 0, ',', ' ') }} FCFA</td>
+                </tr>
+            </tfoot>
+        </table>
+        <p style="color:#6B7280; font-size:10px; margin-top:4px;">
+            Ce total (colonne Montant) correspond exactement à la somme des ventes de la période (avant retours), déjà indiquée plus haut.
+            Le total de la colonne "Prix d'achat" correspond au coût d'achat réel (prix unitaire × quantité pour chaque ligne, additionné) — il doit correspondre au "Coût d'achat" affiché plus haut dans la section Coûts & Marges.
+        </p>
     @endif
 @endsection

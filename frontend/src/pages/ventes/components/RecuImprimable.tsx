@@ -97,7 +97,9 @@ const RecuImprimable = forwardRef<HTMLDivElement, Props>(({ vente, boutique, log
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3mm', fontSize: '13px' }}>
         <div>
           Nom : <span style={{ borderBottom: '1px solid #000', display: 'inline-block', minWidth: '55mm' }}>
-            {vente.client ? [vente.client.prenom, vente.client.nom].filter(Boolean).join(' ') : 'Client'}
+            {vente.client
+              ? [vente.client.prenom, vente.client.nom].filter(Boolean).join(' ')
+              : vente.client_nom_libre ?? 'Client'}
           </span>
         </div>
         <div>

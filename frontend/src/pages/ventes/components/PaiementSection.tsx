@@ -15,6 +15,7 @@ export interface PaiementState {
   credit: string
   client_id: string
   avance: string
+  client_nom_libre: string
 }
 
 interface Props {
@@ -71,6 +72,18 @@ export default function PaiementSection({ boutiqueId, totalNet, paiement, onChan
   const hasAvance   = avance > 0
   const hasCredit   = reliquat > 0
   const avanceDepasseSolde = hasAvance && soldeAvance !== null && avance > soldeAvance
+  const hasClientReel = !!paiement.client_id && paiement.client_id !== '0'
+
+  // Un nom libre ne suffit jamais pour crédit ou avance — ces modes exigent un vrai client
+  const nomLibreDesactive = hasClientReel || hasCredit || hasAvance
+
+  const handleClientChange = (v: string) => {
+    set('client_id', v)
+    // Un vrai client sélectionné efface le nom libre — les deux ne coexistent jamais
+    if (v && v !== '0' && paiement.client_nom_libre) {
+      set('client_nom_libre', '')
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -83,10 +96,33 @@ export default function PaiementSection({ boutiqueId, totalNet, paiement, onChan
         <RechercheClientInput
           boutiqueId={boutiqueId}
           clientId={paiement.client_id}
-          onChange={v => set('client_id', v)}
+          onChange={handleClientChange}
           required={hasCredit || hasAvance}
         />
       </div>
+
+      {/* Nom libre — uniquement si pas de client enregistré et pas de crédit/avance */}
+      {!hasClientReel && (
+        <div className="space-y-1.5">
+          <Label>Nom du client (non enregistré)</Label>
+          <Input
+            value={paiement.client_nom_libre}
+            onChange={e => set('client_nom_libre', e.target.value)}
+            placeholder="Ex : Aïcha, client de passage..."
+            disabled={nomLibreDesactive}
+            className="h-9"
+          />
+          {hasCredit || hasAvance ? (
+            <p className="text-xs text-[#E8314A]">
+              Un client enregistré est requis pour le crédit ou l'avance — sélectionnez-en un ci-dessus.
+            </p>
+          ) : (
+            <p className="text-xs text-gray-400">
+              Apparaît sur la facture et dans la liste des ventes, sans créer de fiche client.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Espèces */}
       <div className="space-y-1.5">
@@ -138,11 +174,11 @@ export default function PaiementSection({ boutiqueId, totalNet, paiement, onChan
           value={paiement.avance}
           onChange={e => set('avance', e.target.value)}
           placeholder="0"
-          disabled={!paiement.client_id || paiement.client_id === '0'}
+          disabled={!hasClientReel}
           className="h-9"
         />
-        {!paiement.client_id || paiement.client_id === '0' ? (
-          <p className="text-xs text-gray-400">Sélectionnez un client pour utiliser une avance</p>
+        {!hasClientReel ? (
+          <p className="text-xs text-gray-400">Sélectionnez un client enregistré pour utiliser une avance</p>
         ) : chargementSolde ? (
           <p className="text-xs text-gray-400">Chargement du solde...</p>
         ) : soldeAvance !== null && (

@@ -45,7 +45,7 @@ class RapportController extends Controller
         $ventes = Vente::where('boutique_id', $boutique_id)
                     ->where('statut', 'validee')
                     ->whereBetween('date_validation', [$debut, $fin])
-                    ->with(['details', 'paiements', 'client:id,nom,prenom'])
+                    ->with(['details.variante.produit', 'paiements', 'client:id,nom,prenom'])
                     ->get();
 
         $totalBrut   = $ventes->sum('total_brut');
@@ -59,7 +59,7 @@ class RapportController extends Controller
         $totalRetours = $retours->sum('montant_rembourse');
 
         // Paiements par mode
-        $parMode = ['especes' => 0, 'mobile_money' => 0, 'credit' => 0];
+        $parMode = ['especes' => 0, 'mobile_money' => 0, 'credit' => 0, 'avance_client' => 0];
         foreach ($ventes as $vente) {
             foreach ($vente->paiements as $p) {
                 $parMode[$p->mode] = ($parMode[$p->mode] ?? 0) + $p->montant;
@@ -92,10 +92,14 @@ class RapportController extends Controller
         }
 
         // ── Répartition Réglées / Partielles / Entièrement à crédit ──────────────
+        // Un règlement immédiat inclut especes, mobile_money ET avance_client —
+        // l'avance est déjà en caisse au moment du dépôt, elle compte donc comme
+        // "réglé" du point de vue de cette classification (contrairement au crédit,
+        // qui reste une vraie dette en attente).
         $venteIdsAvecCredit = $ventes->filter(fn($v) => $v->paiements->contains('mode', 'credit'))->pluck('id');
         $venteIdsPartielles = $ventes->filter(function ($v) use ($venteIdsAvecCredit) {
             return $venteIdsAvecCredit->contains($v->id)
-                && $v->paiements->contains(fn($p) => in_array($p->mode, ['especes', 'mobile_money']));
+                && $v->paiements->contains(fn($p) => in_array($p->mode, ['especes', 'mobile_money', 'avance_client']));
         })->pluck('id');
         $venteIdsEntierementCredit = $venteIdsAvecCredit->diff($venteIdsPartielles)->values();
 
@@ -106,17 +110,20 @@ class RapportController extends Controller
         $creditPartielles        = $ventes->whereIn('id', $venteIdsPartielles)
             ->flatMap(fn($v) => $v->paiements)->where('mode', 'credit')->sum('montant');
         $regleImmediatPartielles = $ventes->whereIn('id', $venteIdsPartielles)
-            ->flatMap(fn($v) => $v->paiements)->whereIn('mode', ['especes', 'mobile_money'])->sum('montant');
+            ->flatMap(fn($v) => $v->paiements)->whereIn('mode', ['especes', 'mobile_money', 'avance_client'])->sum('montant');
 
         $nbEntierementCredit      = $venteIdsEntierementCredit->count();
         $montantEntierementCredit = $ventes->whereIn('id', $venteIdsEntierementCredit)
             ->flatMap(fn($v) => $v->paiements)->where('mode', 'credit')->sum('montant');
 
         // ── Argent réellement encaissé sur la période ─────────────────────────────
+        // Volontairement limité à especes/mobile_money : une avance utilisée ici n'est
+        // pas un nouvel encaissement, l'argent est déjà entré en caisse au dépôt.
         $regleSurVentesPeriode = (float) ($parMode['especes'] ?? 0) + (float) ($parMode['mobile_money'] ?? 0);
 
         $recouvrementVentePeriode = DB::table('paiements_clients')
             ->where('boutique_id', $boutique_id)
+            ->where('mode', '!=', 'ajustement_retour')
             ->whereBetween('created_at', [$debut, $fin])
             ->sum('montant');
 
@@ -175,7 +182,7 @@ class RapportController extends Controller
 
         $detailVentes = $ventes->map(function ($v) use ($rembourseParVente) {
             $credit    = (float) $v->paiements->where('mode', 'credit')->sum('montant');
-            $cash      = (float) $v->paiements->whereIn('mode', ['especes', 'mobile_money'])->sum('montant');
+            $cash      = (float) $v->paiements->whereIn('mode', ['especes', 'mobile_money', 'avance_client'])->sum('montant');
             $rembourse = (float) ($rembourseParVente[$v->id] ?? 0);
             $resteDu   = max(0, $credit - $rembourse);
             $categorie = $credit == 0 ? 'reglee' : ($cash > 0 ? 'partielle' : 'credit_total');
@@ -193,6 +200,30 @@ class RapportController extends Controller
                 'reste_du'        => $resteDu,
             ];
         })->sortByDesc('date_validation')->values();
+
+        // Détail des écarts de prix — uniquement les lignes où le prix appliqué diffère du catalogue
+        $articlesVendus = collect();
+        foreach ($ventes as $vente) {
+            foreach ($vente->details as $detail) {
+                $prixAchat     = $this->getPrixAchatVariante($detail->variante);
+                $prixCatalogue = (float) $detail->prix_catalogue;
+                $prixApplique  = (float) $detail->prix_applique;
+                $quantite      = $detail->quantite;
+                $montantLigne  = ($prixApplique * $quantite) - (float) $detail->remise_montant;
+
+                $articlesVendus->push([
+                    'numero_facture'  => $vente->numero_facture,
+                    'date_validation' => $vente->date_validation,
+                    'produit'         => $detail->variante->produit->designation ?? '—',
+                    'quantite'        => $quantite,
+                    'prix_achat'      => $prixAchat,
+                    'prix_vente'      => $prixCatalogue,
+                    'prix_applique'   => $prixApplique,
+                    'montant'         => $montantLigne,
+                ]);
+            }
+        }
+        $articlesVendus = $articlesVendus->sortBy('date_validation')->values();
 
         return response()->json([
             'periode'  => ['debut' => $request->debut, 'fin' => $request->fin],
@@ -230,6 +261,7 @@ class RapportController extends Controller
                     'montant' => (float) $montantEntierementCredit,
                 ],
                 'detail'             => $detailVentes,
+                'articles_vendus'    => $articlesVendus,
             ],
             'encaisse' => [
                 'regle_sur_ventes' => $regleSurVentesPeriode,

@@ -18,7 +18,7 @@ import { formatMontant } from '@/utils/format'
 import { toast } from 'sonner'
 
 const paiementVide: PaiementState = {
-  especes: '', mobile_money: '', operateur_id: '', credit: '', client_id: '', avance: ''
+  especes: '', mobile_money: '', operateur_id: '', credit: '', client_id: '', avance: '', client_nom_libre: '',
 }
 
 export default function NouvelleVentePage() {
@@ -196,27 +196,26 @@ export default function NouvelleVentePage() {
         ? Number(paiement.client_id) : null
 
       if (valider && brouillonId) {
-        // 1. Mettre à jour les lignes du brouillon
         await updateVente(id, brouillonId, {
           client_id: clientId,
+          client_nom_libre: clientId ? undefined : (paiement.client_nom_libre || undefined),
           lignes:    lignesPayload,
           paiements: [],
         })
-        // 2. Valider le brouillon via l'endpoint dédié
         const res = await validerVente(id, brouillonId, buildPaiements())
         vente = res.data
       } else if (brouillonId && !valider) {
-        // Sauvegarder brouillon existant
         const res = await updateVente(id, brouillonId, {
           client_id: clientId,
+          client_nom_libre: clientId ? undefined : (paiement.client_nom_libre || undefined),
           lignes:    lignesPayload,
           paiements: [],
         })
         vente = res.data
       } else {
-        // Nouvelle vente (avec ou sans validation)
         const res = await createVente(id, {
           client_id: clientId,
+          client_nom_libre: clientId ? undefined : (paiement.client_nom_libre || undefined),
           lignes:    lignesPayload,
           paiements: buildPaiements(),
           valider,

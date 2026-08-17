@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, Eye, ChevronLeft, ChevronRight, Info } from 'lucide-react'
+import { Plus, Eye, ChevronLeft, ChevronRight, Info, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-//import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getVentes, getVentesStats, annulerVente, supprimerVente } from '@/api/ventes'
 import type { Vente, VenteStats } from '@/api/ventes'
 import { formatMontant, formatDate } from '@/utils/format'
@@ -35,6 +34,9 @@ export default function VentesPage() {
   const [lastPage, setLastPage]       = useState(1)
   const [supprimerTarget, setSupprimerTarget] = useState<Vente | null>(null)
 
+  const [search, setSearch]                   = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
   const today    = new Date().toISOString().slice(0, 10)
   const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
 
@@ -50,6 +52,7 @@ export default function VentesPage() {
     try {
       const params: Record<string, unknown> = { per_page: 25, page }
       if (filtreStatut !== 'tous') params.statut = filtreStatut
+      if (debouncedSearch) params.search = debouncedSearch
       const res  = await getVentes(id, params)
       const data = res.data?.data ?? res.data
       setVentes(Array.isArray(data) ? data : [])
@@ -60,10 +63,18 @@ export default function VentesPage() {
     }
   }
 
-  useEffect(() => { load() }, [id, filtreStatut, page])
+  useEffect(() => { load() }, [id, filtreStatut, page, debouncedSearch])
 
+  // Debounce de la recherche : on repart à la page 1 à chaque nouvelle recherche
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search])
 
-  // Chargement des stats — effect séparé, indépendant de la pagination/filtre statut
+  // Chargement des stats — effect séparé, indépendant de la pagination/filtre statut/recherche
   useEffect(() => {
     getVentesStats(id, { debut, fin })
       .then(res => setStats(res.data))
@@ -224,12 +235,27 @@ export default function VentesPage() {
         </div>
       </div>
 
+      {/* Recherche */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher par n° facture, nom, prénom ou téléphone du client..."
+            className="pl-10 border-gray-200"
+          />
+        </div>
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200">
         {loading ? (
           <div className="text-center py-16 text-gray-400">Chargement...</div>
         ) : ventes.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">Aucune vente</div>
+          <div className="text-center py-16 text-gray-400">
+            {debouncedSearch ? 'Aucune vente trouvée pour cette recherche' : 'Aucune vente'}
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -262,7 +288,12 @@ export default function VentesPage() {
                         {formatDate(v.date_validation ?? v.created_at)}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-700">
-                        {v.client ? [v.client.prenom, v.client.nom].filter(Boolean).join(' ') : <span className="text-gray-300">Client</span>}
+                        {v.client
+                          ? [v.client.prenom, v.client.nom].filter(Boolean).join(' ')
+                          : v.client_nom_libre
+                            ? <span>{v.client_nom_libre}</span>
+                            : <span className="text-gray-300">Client</span>
+                        }
                       </td>
                       <td className="py-3 px-4 text-sm font-medium text-gray-900">
                         {formatMontant(v.total_net)}
@@ -298,11 +329,6 @@ export default function VentesPage() {
                         </div>
                         </td>
 
-                      {/* <td className="py-3 px-4">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statut?.className}`}>
-                          {statut?.label}
-                        </span>
-                      </td> */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <button

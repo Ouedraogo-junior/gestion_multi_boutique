@@ -16,6 +16,7 @@ export interface PaiementPayload {
 
 export interface VentePayload {
   client_id?: number | null
+  client_nom_libre?: string | null
   lignes: VenteDetailPayload[]
   paiements: PaiementPayload[]
   note?: string
@@ -46,6 +47,7 @@ export interface Vente {
   id: number
   boutique_id: number
   client_id: number | null
+  client_nom_libre: string | null
   vendeur_id: number
   statut: 'brouillon' | 'validee' | 'annulee'
   numero_facture: string | null

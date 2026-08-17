@@ -75,7 +75,9 @@ export default function VenteDetailPage() {
   //const totalEspeces = vente.paiements?.filter(p => p.mode === 'especes').reduce((s, p) => s + Number(p.montant), 0) ?? 0
   //const totalMM      = vente.paiements?.filter(p => p.mode === 'mobile_money').reduce((s, p) => s + Number(p.montant), 0) ?? 0
   const totalCredit  = vente.paiements?.filter(p => p.mode === 'credit').reduce((s, p) => s + Number(p.montant), 0) ?? 0
-  const nomClient    = vente.client ? [vente.client.prenom, vente.client.nom].filter(Boolean).join(' ') : null
+  const nomClient = vente.client
+  ? [vente.client.prenom, vente.client.nom].filter(Boolean).join(' ')
+  : vente.client_nom_libre
 
   return (
     <div className="space-y-6">
@@ -204,7 +206,7 @@ export default function VenteDetailPage() {
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Client</h3>
             {nomClient
               ? <p className="text-gray-900 font-medium">{nomClient}</p>
-              : <p className="text-gray-300 text-sm">Anonyme</p>
+              : <p className="text-gray-300 text-sm">Client</p>
             }
           </div>
 

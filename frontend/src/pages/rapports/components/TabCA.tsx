@@ -15,6 +15,7 @@ type CAData = {
     partielles: { count: number; montant_regle: number; montant_credit: number }
     entierement_credit: { count: number; montant: number }
     detail: VenteDetail[]
+    articles_vendus: ArticleVendu[]
   }
   encaisse: {
     regle_sur_ventes: number
@@ -43,15 +44,28 @@ type VenteDetail = {
   reste_du: number
 }
 
+type ArticleVendu = {
+  numero_facture: string
+  date_validation: string
+  produit: string
+  quantite: number
+  prix_achat: number
+  prix_vente: number
+  prix_applique: number
+  montant: number
+}
+
 const MODE_COLORS: Record<string, string> = {
-  especes:      '#1A7A4A',
-  mobile_money: '#29ABE2',
-  credit:       '#E8314A',
+  especes:       '#1A7A4A',
+  mobile_money:  '#29ABE2',
+  avance_client: '#9333EA',
+  credit:        '#E8314A',
 }
 const MODE_LABELS: Record<string, string> = {
-  especes:      'Espèces',
-  mobile_money: 'Mobile Money',
-  credit:       'Crédit',
+  especes:       'Espèces',
+  mobile_money:  'Mobile Money',
+  avance_client: 'Avance client',
+  credit:        'Crédit',
 }
 const CATEGORIE_BADGES: Record<VenteDetail['categorie'], { label: string; className: string }> = {
   reglee:       { label: 'Réglée intégralement', className: 'bg-[#D4F0E2] text-[#145C38]' },
@@ -62,7 +76,7 @@ const CATEGORIE_BADGES: Record<VenteDetail['categorie'], { label: string; classN
 export default function TabCA({ data }: { data: CAData }) {
   const ca      = data.ca     ?? { brut: 0, retours: 0, net: 0, total_remises: 0, ecart_prix: 0 }
   const couts   = data.couts  ?? { achat: 0, marge_brute: 0, depenses: 0, benefice_net: 0 }
-  const ventes  = data.ventes ?? { count_validees: 0, count_brouillons: 0, par_mode: {}, sans_credit: { count: 0, montant: 0 }, partielles: { count: 0, montant_regle: 0, montant_credit: 0 }, entierement_credit: { count: 0, montant: 0 }, detail: [] }
+  const ventes  = data.ventes ?? { count_validees: 0, count_brouillons: 0, par_mode: {}, sans_credit: { count: 0, montant: 0 }, partielles: { count: 0, montant_regle: 0, montant_credit: 0 }, entierement_credit: { count: 0, montant: 0 }, detail: [], articles_vendus: [] }
   const encaisse = data.encaisse ?? { regle_sur_ventes: 0, recouvrement: 0, avances_deposees: 0, total: 0 }
   const transferts = data.transferts_boutiques ?? { creances_actuelles: 0, crees_periode: 0, encaisse_periode: 0, regle_avance_periode: 0 }
   const parMode = ventes.par_mode ?? {}
@@ -76,10 +90,11 @@ export default function TabCA({ data }: { data: CAData }) {
     }))
 
   const kpis = [
-    { label: 'CA Net',       value: ca.net,               color: 'text-[#1C1C1C]', bg: 'bg-gray-50'    },
-    { label: 'Espèces',      value: parMode.especes ?? 0,      color: 'text-[#1A7A4A]', bg: 'bg-[#D4F0E2]' },
-    { label: 'Mobile Money', value: parMode.mobile_money ?? 0, color: 'text-[#29ABE2]', bg: 'bg-blue-50'   },
-    { label: 'Crédit',       value: parMode.credit ?? 0,       color: 'text-[#E8314A]', bg: 'bg-red-50'    },
+    { label: 'CA Net',       value: ca.net,                     color: 'text-[#1C1C1C]', bg: 'bg-gray-50'    },
+    { label: 'Espèces',      value: parMode.especes ?? 0,       color: 'text-[#1A7A4A]', bg: 'bg-[#D4F0E2]' },
+    { label: 'Mobile Money', value: parMode.mobile_money ?? 0,  color: 'text-[#29ABE2]', bg: 'bg-blue-50'   },
+    { label: 'Avance client',value: parMode.avance_client ?? 0, color: 'text-[#9333EA]', bg: 'bg-purple-50' },
+    { label: 'Crédit',       value: parMode.credit ?? 0,        color: 'text-[#E8314A]', bg: 'bg-red-50'    },
   ]
 
   return (
@@ -240,7 +255,16 @@ export default function TabCA({ data }: { data: CAData }) {
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500 mb-1">Écart prix</p>
-          <p className="text-lg text-[#E8314A]">- {formatMontant(ca.ecart_prix)}</p>
+          <p className={`text-lg font-semibold ${ca.ecart_prix > 0 ? 'text-[#E8314A]' : ca.ecart_prix < 0 ? 'text-[#1A7A4A]' : 'text-[#1C1C1C]'}`}>
+            {ca.ecart_prix > 0
+              ? `- ${formatMontant(ca.ecart_prix)}`
+              : ca.ecart_prix < 0
+                ? `+ ${formatMontant(Math.abs(ca.ecart_prix))}`
+                : formatMontant(0)}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {ca.ecart_prix > 0 ? 'Vendu moins cher que le catalogue' : ca.ecart_prix < 0 ? 'Vendu plus cher que le catalogue' : 'Aucun écart'}
+          </p>
         </div>
       </div>
 
@@ -346,6 +370,72 @@ export default function TabCA({ data }: { data: CAData }) {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Détail des articles vendus — prix d'achat, prix de vente, prix appliqué */}
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-medium text-gray-700">Détail des articles vendus</h3>
+          <p className="text-xs text-gray-400 mt-1">
+            Chaque article vendu sur la période, avec son prix d'achat, son prix de vente catalogue et le prix réellement appliqué.
+          </p>
+        </div>
+        {ventes.articles_vendus.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">
+            Aucun article vendu sur cette période
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Date</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Facture</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium">Produit</th>
+                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium">Qté</th>
+                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium">Prix d'achat</th>
+                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium">Prix de vente</th>
+                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium">Prix appliqué</th>
+                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium">Montant</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ventes.articles_vendus.map((a, i) => (
+                  <tr key={i} className="border-b border-gray-50 hover:bg-[#F4F6F5] transition-colors">
+                    <td className="py-2.5 px-4 text-sm text-gray-600">{formatDate(a.date_validation)}</td>
+                    <td className="py-2.5 px-4 text-sm font-mono text-gray-600">{a.numero_facture}</td>
+                    <td className="py-2.5 px-4 text-sm text-gray-700">{a.produit}</td>
+                    <td className="py-2.5 px-4 text-sm text-right">{a.quantite}</td>
+                    <td className="py-2.5 px-4 text-sm text-right">{formatMontant(a.prix_achat)}</td>
+                    <td className="py-2.5 px-4 text-sm text-right">{formatMontant(a.prix_vente)}</td>
+                    <td className="py-2.5 px-4 text-sm text-right">{formatMontant(a.prix_applique)}</td>
+                    <td className="py-2.5 px-4 text-sm font-medium text-gray-900 text-right">{formatMontant(a.montant)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-gray-200 font-semibold">
+                  <td colSpan={3} className="py-3 px-4 text-sm text-right text-gray-700">Total</td>
+                  <td className="py-3 px-4 text-sm text-right text-gray-900">
+                    {ventes.articles_vendus.reduce((s, a) => s + a.quantite, 0)}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-right text-gray-900">
+                    {formatMontant(ventes.articles_vendus.reduce((s, a) => s + a.prix_achat * a.quantite, 0))}
+                  </td>
+                  <td colSpan={2}></td>
+                  <td className="py-3 px-4 text-sm text-right text-[#1A7A4A]">
+                    {formatMontant(ventes.articles_vendus.reduce((s, a) => s + a.montant, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+        {ventes.articles_vendus.length > 0 && (
+          <p className="text-xs text-gray-400 px-4 py-3 border-t border-gray-100">
+            Le total "Prix d'achat" correspond au coût d'achat réel (prix unitaire × quantité pour chaque ligne, additionné) — il doit correspondre au "Coût achats" affiché plus haut dans la section Coûts & Marges.
+          </p>
         )}
       </div>
     </div>

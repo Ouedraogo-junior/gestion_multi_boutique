@@ -37,24 +37,40 @@ class VenteController extends Controller
             $query->whereBetween('created_at', [$request->debut, $request->fin . ' 23:59:59']);
         }
 
+        if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function ($q) use ($search) {
+            $q->where('numero_facture', 'like', "%{$search}%")
+            ->orWhere('client_nom_libre', 'like', "%{$search}%")
+            ->orWhereHas('client', function ($qc) use ($search) {
+                $qc->where('nom', 'like', "%{$search}%")
+                    ->orWhere('prenom', 'like', "%{$search}%")
+                    ->orWhere('telephone', 'like', "%{$search}%")
+                    ->orWhereRaw("CONCAT(COALESCE(prenom, ''), ' ', nom) LIKE ?", ["%{$search}%"])
+                    ->orWhereRaw("CONCAT(nom, ' ', COALESCE(prenom, '')) LIKE ?", ["%{$search}%"]);
+            });
+        });
+    }
+
         return response()->json($query->latest()->paginate($request->get('per_page', 25)));
     }
 
     public function store(Request $request, int $boutique_id): JsonResponse
     {
         $data = $request->validate([
-            'client_id'              => 'nullable|exists:clients,id',
-            'note'                   => 'nullable|string',
-            'valider'                => 'boolean',
-            'lignes'                 => 'required|array|min:1',
-            'lignes.*.variante_id'   => 'required|exists:variantes,id',
-            'lignes.*.quantite'      => 'required|integer|min:1',
-            'lignes.*.prix_applique' => 'required|numeric|min:0',
-            'lignes.*.remise_montant'=> 'nullable|numeric|min:0',
-            'paiements'              => 'required_if:valider,true|array',
-            'paiements.*.mode'       => 'required|in:especes,mobile_money,credit,avance_client',
-            'paiements.*.montant'    => 'required|numeric|min:0',
-            'paiements.*.operateur_id' => 'nullable|exists:referentiels,id',
+            'client_id'               => 'nullable|exists:clients,id',
+            'client_nom_libre'        => 'nullable|string|max:150',
+            'note'                    => 'nullable|string',
+            'valider'                 => 'boolean',
+            'lignes'                  => 'required|array|min:1',
+            'lignes.*.variante_id'    => 'required|exists:variantes,id',
+            'lignes.*.quantite'       => 'required|integer|min:1',
+            'lignes.*.prix_applique'  => 'required|numeric|min:0',
+            'lignes.*.remise_montant' => 'nullable|numeric|min:0',
+            'paiements'               => 'required_if:valider,true|array',
+            'paiements.*.mode'        => 'required|in:especes,mobile_money,credit,avance_client',
+            'paiements.*.montant'     => 'required|numeric|min:0',
+            'paiements.*.operateur_id'=> 'nullable|exists:referentiels,id',
         ]);
 
         DB::beginTransaction();
@@ -89,11 +105,11 @@ class VenteController extends Controller
                     }
                 }
 
-                // Crédit nécessite un client
+                // Crédit nécessite un VRAI client — un nom libre ne suffit pas
                 $hasModeCredit = collect($data['paiements'] ?? [])->contains('mode', 'credit');
                 if ($hasModeCredit && empty($data['client_id'])) {
                     DB::rollBack();
-                    return response()->json(['message' => 'Un client est requis pour une vente à crédit'], 422);
+                    return response()->json(['message' => 'Un client enregistré est requis pour une vente à crédit'], 422);
                 }
 
                 // Avance client (somme de toutes les lignes en mode avance_client, pas seulement la première)
@@ -101,12 +117,12 @@ class VenteController extends Controller
                 if ($montantAvance > 0) {
                     if (empty($data['client_id'])) {
                         DB::rollBack();
-                        return response()->json(['message' => 'Un client est requis pour payer avec une avance'], 422);
+                        return response()->json(['message' => 'Un client enregistré est requis pour payer avec une avance'], 422);
                     }
 
                     $clientAvance = Client::where('boutique_id', $boutique_id)
-                                          ->lockForUpdate()
-                                          ->findOrFail($data['client_id']);
+                                        ->lockForUpdate()
+                                        ->findOrFail($data['client_id']);
 
                     if ($montantAvance > $clientAvance->solde_avance) {
                         DB::rollBack();
@@ -118,16 +134,20 @@ class VenteController extends Controller
                 }
             }
 
+            // Un vrai client prime toujours sur le nom libre — jamais les deux en même temps
+            $clientNomLibre = empty($data['client_id']) ? ($data['client_nom_libre'] ?? null) : null;
+
             // Créer la vente
             $vente = Vente::create([
-                'boutique_id'  => $boutique_id,
-                'client_id'    => $data['client_id'] ?? null,
-                'vendeur_id'   => auth()->id(),
-                'statut'       => 'brouillon',
-                'total_brut'   => $totalBrut,
-                'total_remise' => $totalRemise,
-                'total_net'    => $totalNet,
-                'note'         => $data['note'] ?? null,
+                'boutique_id'      => $boutique_id,
+                'client_id'        => $data['client_id'] ?? null,
+                'client_nom_libre' => $clientNomLibre,
+                'vendeur_id'       => auth()->id(),
+                'statut'           => 'brouillon',
+                'total_brut'       => $totalBrut,
+                'total_remise'     => $totalRemise,
+                'total_net'        => $totalNet,
+                'note'             => $data['note'] ?? null,
             ]);
 
             // Créer les lignes
@@ -173,17 +193,18 @@ class VenteController extends Controller
     public function update(Request $request, int $boutique_id, int $id): JsonResponse
     {
         $vente = Vente::where('boutique_id', $boutique_id)
-                      ->where('statut', 'brouillon')
-                      ->findOrFail($id);
+                    ->where('statut', 'brouillon')
+                    ->findOrFail($id);
 
         $data = $request->validate([
-            'client_id'              => 'nullable|exists:clients,id',
-            'note'                   => 'nullable|string',
-            'lignes'                 => 'sometimes|array|min:1',
-            'lignes.*.variante_id'   => 'required|exists:variantes,id',
-            'lignes.*.quantite'      => 'required|integer|min:1',
-            'lignes.*.prix_applique' => 'required|numeric|min:0',
-            'lignes.*.remise_montant'=> 'nullable|numeric|min:0',
+            'client_id'               => 'nullable|exists:clients,id',
+            'client_nom_libre'        => 'nullable|string|max:150',
+            'note'                    => 'nullable|string',
+            'lignes'                  => 'sometimes|array|min:1',
+            'lignes.*.variante_id'    => 'required|exists:variantes,id',
+            'lignes.*.quantite'       => 'required|integer|min:1',
+            'lignes.*.prix_applique'  => 'required|numeric|min:0',
+            'lignes.*.remise_montant' => 'nullable|numeric|min:0',
         ]);
 
         DB::beginTransaction();
@@ -209,12 +230,18 @@ class VenteController extends Controller
                     ]);
                 }
 
+                $clientId = array_key_exists('client_id', $data) ? $data['client_id'] : $vente->client_id;
+                $clientNomLibre = empty($clientId)
+                    ? (array_key_exists('client_nom_libre', $data) ? $data['client_nom_libre'] : $vente->client_nom_libre)
+                    : null;
+
                 $vente->update([
-                    'client_id'    => $data['client_id'] ?? $vente->client_id,
-                    'note'         => $data['note'] ?? $vente->note,
-                    'total_brut'   => $totalBrut,
-                    'total_remise' => $totalRemise,
-                    'total_net'    => $totalBrut - $totalRemise,
+                    'client_id'        => $clientId,
+                    'client_nom_libre' => $clientNomLibre,
+                    'note'             => $data['note'] ?? $vente->note,
+                    'total_brut'       => $totalBrut,
+                    'total_remise'     => $totalRemise,
+                    'total_net'        => $totalBrut - $totalRemise,
                 ]);
             }
 

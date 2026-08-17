@@ -59,6 +59,16 @@ class RetourController extends Controller
             ], 422);
         }
 
+        // Si la vente a encore une dette (crédit non entièrement remboursé), le retour doit
+        // en priorité réduire cette dette plutôt que de générer un remboursement réel —
+        // aucun argent n'a été reçu sur la portion à crédit, il n'y a donc rien à rendre dessus.
+        $creditAccorde = \App\Models\VentePaiement::where('vente_id', $vente->id)->where('mode', 'credit')->sum('montant');
+        $dejaRembourseParClient = \App\Models\PaiementClient::where('vente_id', $vente->id)->sum('montant');
+        $creditRestant = max(0, $creditAccorde - $dejaRembourseParClient);
+
+        $reductionDette = min($data['montant_rembourse'], $creditRestant);
+        $montantReelRembourse = $data['montant_rembourse'] - $reductionDette;
+
         DB::beginTransaction();
 
         try {
@@ -115,16 +125,38 @@ class RetourController extends Controller
                 ]);
             }
 
+            // Réduction de la dette du client — priorité sur le remboursement réel
+            if ($reductionDette > 0) {
+                \App\Models\PaiementClient::create([
+                    'boutique_id'  => $boutique_id,
+                    'client_id'    => $vente->client_id,
+                    'vente_id'     => $vente->id,
+                    'montant'      => $reductionDette,
+                    'mode'         => 'ajustement_retour',
+                    'operateur_id' => null,
+                    'user_id'      => auth()->id(),
+                    'note'         => 'Réduction de dette suite au retour #' . $retour->id . ' (aucun argent réellement rendu sur cette portion)',
+                    'date'         => now()->toDateString(),
+                    'created_at'   => now(),
+                ]);
+            }
+
             DB::commit();
 
             $request->auditAction   = 'retour_enregistre';
             $request->auditModule   = 'retours';
             $request->auditDetails  = [
-                'vente_id'          => $vente->id,
-                'montant_rembourse' => $data['montant_rembourse'],
+                'vente_id'               => $vente->id,
+                'montant_rembourse'      => $data['montant_rembourse'],
+                'reduction_dette'        => $reductionDette,
+                'montant_reel_rembourse' => $montantReelRembourse,
             ];
 
-            return response()->json($retour->load(['vente', 'user', 'motif', 'details.variante.produit']), 201);
+            return response()->json([
+                ...$retour->load(['vente', 'user', 'motif', 'details.variante.produit'])->toArray(),
+                'reduction_dette'        => $reductionDette,
+                'montant_reel_rembourse' => $montantReelRembourse,
+            ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();

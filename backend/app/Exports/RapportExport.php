@@ -76,6 +76,7 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
             ['Brouillons',       $ventes['count_brouillons'] ?? 0],
             ['Espèces',          $mode['especes']      ?? 0],
             ['Mobile Money',     $mode['mobile_money'] ?? 0],
+            ['Avance client',  $mode['avance_client'] ?? 0],
             ['Crédit',           $mode['credit']       ?? 0],
         ];
 

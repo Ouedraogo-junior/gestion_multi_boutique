@@ -45,7 +45,7 @@ class DashboardController extends Controller
         // Parmi les ventes à crédit, lesquelles ont AUSSI une ligne especes/mobile_money (paiement partiel)
         $venteIdsPartiellesAujourdhui = DB::table('vente_paiements')
             ->whereIn('vente_id', $venteIdsAvecCreditAujourdhui)
-            ->whereIn('mode', ['especes', 'mobile_money'])
+            ->whereIn('mode', ['especes', 'mobile_money', 'avance_client'])
             ->distinct()
             ->pluck('vente_id');
 
@@ -65,7 +65,7 @@ class DashboardController extends Controller
             ->sum('montant');
         $regleImmediatPartiellesAujourdhui = DB::table('vente_paiements')
             ->whereIn('vente_id', $venteIdsPartiellesAujourdhui)
-            ->whereIn('mode', ['especes', 'mobile_money'])
+            ->whereIn('mode', ['especes', 'mobile_money', 'avance_client'])
             ->sum('montant');
 
         // 3. Entièrement à crédit
@@ -123,7 +123,7 @@ class DashboardController extends Controller
         $recouvrementAujourdhui = DB::select("
             SELECT COALESCE(SUM(pc.montant), 0) AS total
             FROM paiements_clients pc
-            WHERE pc.boutique_id = ? AND DATE(pc.created_at) = ?
+            WHERE pc.boutique_id = ? AND DATE(pc.created_at) = ? AND pc.mode != 'ajustement_retour'
         ", [$boutique_id, $aujourdhui]);
 
         // Recouvrement dettes antérieures du jour
