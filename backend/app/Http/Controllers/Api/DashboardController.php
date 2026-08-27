@@ -123,14 +123,14 @@ class DashboardController extends Controller
         $recouvrementAujourdhui = DB::select("
             SELECT COALESCE(SUM(pc.montant), 0) AS total
             FROM paiements_clients pc
-            WHERE pc.boutique_id = ? AND DATE(pc.created_at) = ? AND pc.mode != 'ajustement_retour'
+            WHERE pc.boutique_id = ? AND DATE(pc.date) = ? AND pc.mode != 'ajustement_retour'
         ", [$boutique_id, $aujourdhui]);
 
         // Recouvrement dettes antérieures du jour
         $recouvrementInitialesAujourdhui = DB::select("
             SELECT COALESCE(SUM(montant), 0) AS total
             FROM dette_initiale_paiements
-            WHERE boutique_id = ? AND DATE(created_at) = ?
+            WHERE boutique_id = ? AND DATE(date) = ?
         ", [$boutique_id, $aujourdhui]);
 
         $totalRecouvrement = (float) ($recouvrementAujourdhui[0]->total ?? 0)

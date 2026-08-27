@@ -124,12 +124,12 @@ class RapportController extends Controller
         $recouvrementVentePeriode = DB::table('paiements_clients')
             ->where('boutique_id', $boutique_id)
             ->where('mode', '!=', 'ajustement_retour')
-            ->whereBetween('created_at', [$debut, $fin])
+            ->whereBetween('date', [$debut, $fin])
             ->sum('montant');
 
         $recouvrementDetteInitialePeriode = DB::table('dette_initiale_paiements')
             ->where('boutique_id', $boutique_id)
-            ->whereBetween('created_at', [$debut, $fin])
+            ->whereBetween('date', [$debut, $fin])
             ->sum('montant');
 
         $recouvrementPeriode = (float) $recouvrementVentePeriode + (float) $recouvrementDetteInitialePeriode;
@@ -367,7 +367,7 @@ class RapportController extends Controller
         $paiementsPeriode = DB::select("
             SELECT * FROM (
                 SELECT
-                    pc.id, pc.client_id, c.nom, c.prenom, pc.montant, pc.mode, pc.created_at AS date,
+                    pc.id, pc.client_id, c.nom, c.prenom, pc.montant, pc.mode, pc.date AS date,
                     'vente' AS source, v.numero_facture
                 FROM paiements_clients pc
                 JOIN clients c ON c.id = pc.client_id
@@ -377,7 +377,7 @@ class RapportController extends Controller
                 UNION ALL
 
                 SELECT
-                    dip.id, dip.client_id, c.nom, c.prenom, dip.montant, dip.mode, dip.created_at AS date,
+                    dip.id, dip.client_id, c.nom, c.prenom, dip.montant, dip.mode, dip.date AS date,
                     'dette_initiale' AS source, NULL AS numero_facture
                 FROM dette_initiale_paiements dip
                 JOIN clients c ON c.id = dip.client_id

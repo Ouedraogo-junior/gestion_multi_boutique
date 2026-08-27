@@ -225,7 +225,7 @@ class ClientController extends Controller
             ->where('pc.client_id', $id)
             ->where('pc.boutique_id', $boutique_id)
             ->select([
-                'pc.id', 'pc.montant', 'pc.mode', 'pc.note', 'pc.created_at as date',
+                'pc.id', 'pc.montant', 'pc.mode', 'pc.note', 'pc.date as date',
                 DB::raw("'vente' as source"),
                 'pc.vente_id',
                 DB::raw('NULL as dette_initiale_id'),
@@ -237,7 +237,7 @@ class ClientController extends Controller
             ->where('dip.client_id', $id)
             ->where('dip.boutique_id', $boutique_id)
             ->select([
-                'dip.id', 'dip.montant', 'dip.mode', 'dip.note', 'dip.created_at as date',
+                'dip.id', 'dip.montant', 'dip.mode', 'dip.note', 'dip.date as date',
                 DB::raw("'dette_initiale' as source"),
                 DB::raw('NULL as vente_id'),
                 'dip.dette_initiale_id',
@@ -306,10 +306,17 @@ class ClientController extends Controller
             ->toBase()
             ->first();
 
-        $recouvrementJour = DB::table('paiements_clients')
+        $recouvrementJourVente = DB::table('paiements_clients')
             ->where('boutique_id', $boutique_id)
             ->whereDate('date', now()->toDateString())
             ->sum('montant');
+
+        $recouvrementJourDetteInitiale = DB::table('dette_initiale_paiements')
+            ->where('boutique_id', $boutique_id)
+            ->whereDate('date', now()->toDateString())
+            ->sum('montant');
+
+        $recouvrementJour = (float) $recouvrementJourVente + (float) $recouvrementJourDetteInitiale;
 
         return response()->json([
             'total_clients'      => $result->total_clients,
@@ -325,7 +332,7 @@ class ClientController extends Controller
 
         $dernierVente = DB::table('paiements_clients as pc')
             ->join('ventes as v', 'v.id', '=', 'pc.vente_id')
-            ->select('pc.id', 'pc.client_id', 'pc.montant', 'pc.mode', 'pc.created_at as date',
+            ->select('pc.id', 'pc.client_id', 'pc.montant', 'pc.mode', 'pc.date as date',
                     'v.numero_facture', 'v.total_net', DB::raw("'vente' as source"))
             ->where('pc.boutique_id', $boutique_id)
             ->whereIn('pc.id', function ($sub) use ($boutique_id, $clientIds) {
@@ -337,7 +344,7 @@ class ClientController extends Controller
             ->get();
 
         $dernierDetteInitiale = DB::table('dette_initiale_paiements as dip')
-            ->select('dip.id', 'dip.client_id', 'dip.montant', 'dip.mode', 'dip.created_at as date',
+            ->select('dip.id', 'dip.client_id', 'dip.montant', 'dip.mode', 'dip.date as date',
                     DB::raw('NULL as numero_facture'), DB::raw('NULL as total_net'), DB::raw("'dette_initiale' as source"))
             ->where('dip.boutique_id', $boutique_id)
             ->whereIn('dip.id', function ($sub) use ($boutique_id, $clientIds) {

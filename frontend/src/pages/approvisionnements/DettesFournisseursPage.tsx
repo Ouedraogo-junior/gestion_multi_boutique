@@ -1,10 +1,51 @@
 // src/pages/approvisionnements/DettesFournisseursPage.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Eye, Banknote, AlertCircle, Clock, CheckCircle2 } from 'lucide-react'
+import { useReactToPrint } from 'react-to-print'
+import { Eye, Banknote, AlertCircle, Clock, CheckCircle2, Printer } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { getApprovisionnements, getSoldeFournisseur, type Approvisionnement, type SoldeFournisseur } from '@/api/approvisionnements'
+import { useBoutique } from '@/hooks/useBoutique'
 import { formatDate, formatMontant } from '@/utils/format'
 import PaiementDrawer from './components/PaiementDrawer'
+import ListeDettesFournisseursImprimable, { type LigneDetteFournisseur } from './components/ListeDettesFournisseursImprimable'
+
+// ─── Agrégation des approvisionnements par fournisseur ─────────────────────────
+function agregerParFournisseur(appros: Approvisionnement[]): LigneDetteFournisseur[] {
+  const map = new Map<number, LigneDetteFournisseur>()
+
+  for (const a of appros) {
+    const montantDu     = Number(a.montant_total_facture ?? a.montant_calcule)
+    const soldeRestant  = Number(a.solde_restant ?? montantDu)
+    const montantPaye   = Math.max(0, montantDu - soldeRestant)
+
+    const existant = map.get(a.fournisseur.id)
+    if (existant) {
+      existant.montantTotal += montantDu
+      existant.montantPaye  += montantPaye
+      existant.resteAPayer  += soldeRestant
+      existant.nbAppros     += 1
+    } else {
+      map.set(a.fournisseur.id, {
+        fournisseurId: a.fournisseur.id,
+        nom:           a.fournisseur.nom,
+        provenance:    a.fournisseur.provenance,
+        montantTotal:  montantDu,
+        montantPaye:   montantPaye,
+        resteAPayer:   soldeRestant,
+        statut:        'non_paye',
+        nbAppros:      1,
+      })
+    }
+  }
+
+  return Array.from(map.values())
+    .map(l => ({
+      ...l,
+      statut: (l.resteAPayer <= 0 ? 'solde' : (l.montantPaye <= 0 ? 'non_paye' : 'partiel')) as LigneDetteFournisseur['statut'],
+    }))
+    .sort((a, b) => b.resteAPayer - a.resteAPayer)
+}
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 function BadgeStatut({ statut }: { statut: 'non_paye' | 'partiel' | 'solde' }) {
@@ -26,9 +67,10 @@ function BadgeStatut({ statut }: { statut: 'non_paye' | 'partiel' | 'solde' }) {
 type Filtre = 'tous' | 'non_paye' | 'partiel' | 'solde'
 
 export default function DettesFournisseursPage() {
-  const { boutiqueId } = useParams()
-  const navigate       = useNavigate()
-  const id             = Number(boutiqueId)
+  const { boutiqueId }     = useParams()
+  const navigate            = useNavigate()
+  const { boutiqueActive }  = useBoutique()
+  const id                  = Number(boutiqueId)
 
   const [appros,   setAppros]   = useState<Approvisionnement[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -38,6 +80,36 @@ export default function DettesFournisseursPage() {
   const [drawerOpen,   setDrawerOpen]   = useState(false)
   const [soldeCourant, setSoldeCourant] = useState<SoldeFournisseur | null>(null)
   const [loadingSolde, setLoadingSolde] = useState(false)
+
+  // Impression de la liste des dettes fournisseurs
+  const [lignesImpression, setLignesImpression]   = useState<LigneDetteFournisseur[] | null>(null)
+  const [loadingImpression, setLoadingImpression] = useState(false)
+  const impressionRef = useRef<HTMLDivElement>(null)
+
+  const handlePrint = useReactToPrint({
+    contentRef: impressionRef,
+    pageStyle: `@page { size: A4; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact; }`,
+    onAfterPrint: () => setLignesImpression(null),
+  })
+
+  // Déclenche l'impression dès que les données agrégées sont prêtes (et donc rendues dans le DOM)
+  useEffect(() => {
+    if (lignesImpression) handlePrint()
+  }, [lignesImpression])
+
+  const handleImprimerListe = async () => {
+    setLoadingImpression(true)
+    try {
+      // On récupère l'ensemble des approvisionnements (tous statuts) pour une situation complète,
+      // indépendamment du filtre actuellement sélectionné à l'écran.
+      const res  = await getApprovisionnements(id, { per_page: 1000 })
+      const data = res.data?.data ?? res.data
+      const tous = Array.isArray(data) ? data : []
+      setLignesImpression(agregerParFournisseur(tous))
+    } finally {
+      setLoadingImpression(false)
+    }
+  }
 
   const charger = (f: Filtre) => {
     setLoading(true)
@@ -103,9 +175,19 @@ export default function DettesFournisseursPage() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl text-[#1C1C1C]">Dettes fournisseurs</h1>
-        <p className="text-gray-500 text-sm mt-1">Suivi des paiements fournisseurs</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl text-[#1C1C1C]">Dettes fournisseurs</h1>
+          <p className="text-gray-500 text-sm mt-1">Suivi des paiements fournisseurs</p>
+        </div>
+        <Button
+          onClick={handleImprimerListe}
+          disabled={loadingImpression}
+          className="bg-[#1A7A4A] hover:bg-[#145C38] text-white"
+        >
+          <Printer size={16} className="mr-2" />
+          {loadingImpression ? 'Préparation...' : 'Imprimer la liste'}
+        </Button>
       </div>
 
       {/* Stats */}
@@ -235,6 +317,19 @@ export default function DettesFournisseursPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Liste imprimable montée en arrière-plan */}
+      <div style={{ position: 'fixed', top: '-9999px', left: 0, width: '210mm', zIndex: -1 }}>
+        {lignesImpression && boutiqueActive && (
+          <ListeDettesFournisseursImprimable
+            ref={impressionRef}
+            boutique={boutiqueActive}
+            logoBase64={boutiqueActive.logo_base64 ?? null}
+            lignes={lignesImpression}
+            dateImpression={new Date().toISOString()}
+          />
         )}
       </div>
 
