@@ -398,6 +398,71 @@ class RapportController extends Controller
     }
 
     // -------------------------------------------------------
+    // Rapport dettes fournisseurs
+    // -------------------------------------------------------
+    public function dettesFournisseurs(Request $request, int $boutique_id): JsonResponse
+    {
+        $request->validate([
+            'debut' => 'required|date',
+            'fin'   => 'required|date|after_or_equal:debut',
+        ]);
+
+        $dettes = DB::select("
+            SELECT
+                f.id AS fournisseur_id,
+                f.nom,
+                f.telephone,
+                f.provenance,
+                COALESCE(a.total_du, 0)   AS total_du,
+                COALESCE(p.total_paye, 0) AS total_paye,
+                COALESCE(a.total_du, 0) - COALESCE(p.total_paye, 0) AS solde_dette
+            FROM fournisseurs f
+            LEFT JOIN (
+                SELECT fournisseur_id, SUM(COALESCE(montant_total_facture, montant_calcule)) AS total_du
+                FROM approvisionnements
+                WHERE boutique_id = ?
+                GROUP BY fournisseur_id
+            ) a ON a.fournisseur_id = f.id
+            LEFT JOIN (
+                SELECT ap.fournisseur_id, SUM(pf.montant) AS total_paye
+                FROM paiements_fournisseurs pf
+                JOIN approvisionnements ap ON ap.id = pf.approvisionnement_id
+                WHERE pf.boutique_id = ?
+                GROUP BY ap.fournisseur_id
+            ) p ON p.fournisseur_id = f.id
+            WHERE f.boutique_id = ?
+            HAVING solde_dette > 0
+            ORDER BY solde_dette DESC
+        ", [$boutique_id, $boutique_id, $boutique_id]);
+
+        // Historique des paiements effectués sur la période choisie — flux, pas un solde
+        $paiementsPeriode = DB::select("
+            SELECT
+                pf.id,
+                ap.fournisseur_id,
+                f.nom,
+                pf.montant,
+                pf.date_paiement AS date,
+                ap.reference AS numero_approvisionnement
+            FROM paiements_fournisseurs pf
+            JOIN approvisionnements ap ON ap.id = pf.approvisionnement_id
+            JOIN fournisseurs f ON f.id = ap.fournisseur_id
+            WHERE pf.boutique_id = ?
+              AND pf.date_paiement BETWEEN ? AND ?
+            ORDER BY pf.date_paiement DESC, pf.created_at DESC
+        ", [$boutique_id, $request->debut, $request->fin]);
+
+        return response()->json([
+            'boutique_id'             => $boutique_id,
+            'total_dettes'            => collect($dettes)->sum('solde_dette'),
+            'fournisseurs'            => $dettes,
+            'periode'                 => ['debut' => $request->debut, 'fin' => $request->fin],
+            'total_paiements_periode' => collect($paiementsPeriode)->sum('montant'),
+            'paiements_periode'       => $paiementsPeriode,
+        ]);
+    }
+
+    // -------------------------------------------------------
     // Rapport dépenses
     // -------------------------------------------------------
     public function depenses(Request $request, int $boutique_id): JsonResponse
@@ -547,22 +612,28 @@ class RapportController extends Controller
             'debut'  => 'required|date',
             'fin'    => 'required|date',
             'format' => 'required|in:pdf,excel',
-            'type'   => 'required|in:ca,stock,dettes,depenses',
+            'type'   => 'required|in:ca,stock,dettes,depenses,fournisseurs',
         ]);
 
         $boutique    = Boutique::findOrFail($boutique_id);
         $fakeRequest = new Request($request->all());
 
         $data = match($request->type) {
-            'ca'      => $this->ca($fakeRequest, $boutique_id)->getData(true),
-            'stock'   => $this->stock($fakeRequest, $boutique_id)->getData(true),
-            'dettes'  => $this->dettes($fakeRequest, $boutique_id)->getData(true),
-            'depenses'=> $this->depenses($fakeRequest, $boutique_id)->getData(true),
+            'ca'          => $this->ca($fakeRequest, $boutique_id)->getData(true),
+            'stock'       => $this->stock($fakeRequest, $boutique_id)->getData(true),
+            'dettes'      => $this->dettes($fakeRequest, $boutique_id)->getData(true),
+            'depenses'    => $this->depenses($fakeRequest, $boutique_id)->getData(true),
+            'fournisseurs'=> $this->dettesFournisseurs($fakeRequest, $boutique_id)->getData(true),
         };
 
         $filename = 'rapport-' . $request->type . '-' . $request->debut;
 
         if ($request->format === 'pdf') {
+            // dompdf peut être très gourmand en mémoire sur de gros tableaux (algorithme
+            // de mise en page des cellules). On relève temporairement la limite pour cette
+            // seule requête, sans toucher au memory_limit global du serveur.
+            ini_set('memory_limit', '1024M');
+
             $pdf = Pdf::loadView('rapports.' . $request->type, [
                 'data'     => $data,
                 'boutique' => $boutique,
@@ -597,6 +668,8 @@ class RapportController extends Controller
         }
 
         // PDF consolidé — vue simple
+        ini_set('memory_limit', '1024M');
+
         $logoPath = public_path('images/logo.png');
         $logoBase64 = file_exists($logoPath)
             ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath))

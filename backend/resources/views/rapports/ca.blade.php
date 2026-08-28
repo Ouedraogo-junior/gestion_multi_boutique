@@ -76,7 +76,20 @@
     @endif
 
     @if(!empty($data['ventes']['detail']))
+        @php
+            // dompdf gère mal UN énorme tableau (son algorithme de mise en page grandit
+            // de façon non-linéaire avec le nombre de lignes). En le découpant en petits
+            // tableaux consécutifs, on peut afficher TOUTES les lignes sans plafond,
+            // tout en gardant la mémoire sous contrôle. On garde un garde-fou très large
+            // pour éviter un rapport de plusieurs milliers de pages en cas de sélection
+            // de période aberrante (plusieurs années par erreur, par exemple).
+            $CHUNK_VENTES     = 50;
+            $SECURITE_VENTES  = 5000;
+            $totalLignesVentes = count($data['ventes']['detail']);
+            $venteAAfficher    = array_slice($data['ventes']['detail'], 0, $SECURITE_VENTES);
+        @endphp
     <h3>Détail des ventes de la période</h3>
+    @foreach(array_chunk($venteAAfficher, $CHUNK_VENTES) as $chunk)
     <table>
         <thead>
             <tr>
@@ -88,7 +101,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($data['ventes']['detail'] as $v)
+            @foreach($chunk as $v)
             <tr>
                 <td>{{ \Carbon\Carbon::parse($v['date_validation'])->format('d/m/Y') }}</td>
                 <td>{{ $v['numero_facture'] ?? '—' }}</td>
@@ -101,6 +114,13 @@
             @endforeach
         </tbody>
     </table>
+    @endforeach
+    @if($totalLignesVentes > $SECURITE_VENTES)
+    <p style="color:#6B7280; font-size:10px; margin-top:-8px; margin-bottom:12px;">
+        Affichage limité aux {{ $SECURITE_VENTES }} premières ventes sur {{ $totalLignesVentes }} au total — période trop
+        large pour un document PDF unique. Le détail complet reste disponible via l'export Excel.
+    </p>
+    @endif
     @endif
 
     @if(!empty($data['ventes']['detail']))
@@ -158,11 +178,18 @@
             $totalQteArticles       = collect($data['ventes']['articles_vendus'])->sum('quantite');
             $totalMontantArticles   = collect($data['ventes']['articles_vendus'])->sum('montant');
             $totalCoutAchatArticles = collect($data['ventes']['articles_vendus'])->sum(fn($a) => $a['prix_achat'] * $a['quantite']);
+            $totalEcartArticles     = collect($data['ventes']['articles_vendus'])->sum(fn($a) => ($a['prix_applique'] - $a['prix_achat']) * $a['quantite']);
+
+            $CHUNK_ARTICLES      = 50;
+            $SECURITE_ARTICLES   = 5000;
+            $totalLignesArticles = count($data['ventes']['articles_vendus']);
+            $articlesAAfficher   = array_slice($data['ventes']['articles_vendus'], 0, $SECURITE_ARTICLES);
         @endphp
         <h3>Détail des articles vendus</h3>
         <p style="color:#6B7280; font-size:10px; margin-bottom:8px;">
-            Chaque article vendu sur la période, avec son prix d'achat, son prix de vente catalogue et le prix réellement appliqué à la vente.
+            Chaque article vendu sur la période, avec son prix d'achat, son prix de vente catalogue, le prix réellement appliqué à la vente et l'écart entre ce prix appliqué et le prix d'achat (marge réelle réalisée).
         </p>
+        @foreach(array_chunk($articlesAAfficher, $CHUNK_ARTICLES) as $chunk)
         <table>
             <thead>
                 <tr>
@@ -173,11 +200,12 @@
                     <th class="right">Prix d'achat</th>
                     <th class="right">Prix de vente</th>
                     <th class="right">Prix appliqué</th>
+                    <th class="right">Écart</th>
                     <th class="right">Montant</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($data['ventes']['articles_vendus'] as $a)
+                @foreach($chunk as $a)
                 <tr>
                     <td>{{ \Carbon\Carbon::parse($a['date_validation'])->format('d/m/Y') }}</td>
                     <td>{{ $a['numero_facture'] }}</td>
@@ -186,23 +214,39 @@
                     <td class="right">{{ number_format($a['prix_achat'], 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format($a['prix_vente'], 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format($a['prix_applique'], 0, ',', ' ') }}</td>
+                    <td class="right {{ ($a['prix_applique'] - $a['prix_achat']) < 0 ? 'red' : '' }}">
+                        {{ number_format($a['prix_applique'] - $a['prix_achat'], 0, ',', ' ') }}
+                    </td>
                     <td class="right">{{ number_format($a['montant'], 0, ',', ' ') }}</td>
                 </tr>
                 @endforeach
             </tbody>
+        </table>
+        @endforeach
+        <table style="margin-top:-4px;">
             <tfoot>
                 <tr class="total">
-                    <td colspan="3">Total</td>
+                    <td colspan="3">Total {{ $totalLignesArticles > $SECURITE_ARTICLES ? '(période entière)' : '' }}</td>
                     <td class="right">{{ $totalQteArticles }}</td>
                     <td class="right">{{ number_format($totalCoutAchatArticles, 0, ',', ' ') }}</td>
-                    <td colspan="2"></td>
+                    <td></td>
+                    <td></td>
+                    <td class="right">{{ number_format($totalEcartArticles, 0, ',', ' ') }}</td>
                     <td class="right">{{ number_format($totalMontantArticles, 0, ',', ' ') }} FCFA</td>
                 </tr>
             </tfoot>
         </table>
+        @if($totalLignesArticles > $SECURITE_ARTICLES)
+        <p style="color:#6B7280; font-size:10px; margin-top:-4px; margin-bottom:8px;">
+            Affichage limité aux {{ $SECURITE_ARTICLES }} premières lignes sur {{ $totalLignesArticles }} au total — période
+            trop large pour un document PDF unique. Le détail complet reste disponible via l'export Excel. La ligne "Total"
+            ci-dessus porte toujours sur les {{ $totalLignesArticles }} lignes de la période entière.
+        </p>
+        @endif
         <p style="color:#6B7280; font-size:10px; margin-top:4px;">
             Ce total (colonne Montant) correspond exactement à la somme des ventes de la période (avant retours), déjà indiquée plus haut.
             Le total de la colonne "Prix d'achat" correspond au coût d'achat réel (prix unitaire × quantité pour chaque ligne, additionné) — il doit correspondre au "Coût d'achat" affiché plus haut dans la section Coûts & Marges.
+            Le total de la colonne "Écart" (prix appliqué − prix d'achat, cumulé) représente la marge réellement réalisée sur ces ventes ; il se rapproche de la "Marge brute" ci-dessus, la différence éventuelle provenant des retours ou remises globales non répercutées ligne par ligne.
         </p>
     @endif
 @endsection

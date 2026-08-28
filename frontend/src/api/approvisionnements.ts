@@ -9,7 +9,9 @@ export interface FournisseurPayload {
   adresse?: string
   provenance?: string
   notes?: string
+  actif?: boolean
 }
+
 
 export interface Fournisseur {
   id: number

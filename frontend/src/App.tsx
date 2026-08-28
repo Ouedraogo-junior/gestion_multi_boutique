@@ -54,6 +54,7 @@ import ReceptionMarchandisesPage from '@/pages/approvisionnements/ReceptionMarch
 import NouvelApprovisionnementPage from '@/pages/approvisionnements/NouvelApprovisionnementPage'
 import ApprovisionnementDetailPage from '@/pages/approvisionnements/ApprovisionnementDetailPage'
 import DettesFournisseursPage from '@/pages/approvisionnements/DettesFournisseursPage'
+import FournisseursPage from '@/pages/fournisseurs/FournisseursPage'
 
 // Activité
 import ActivitesPage from './pages/activites/ActivitesPage'
@@ -235,6 +236,11 @@ export default function App() {
               <Route path="/boutiques/:boutiqueId/dettes-fournisseurs" element={
                 <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN, ROLES.VENDEUR]}>
                   <DettesFournisseursPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/boutiques/:boutiqueId/fournisseurs" element={
+                <ProtectedRoute roles={[ROLES.ADMIN_BOUTIQUE, ROLES.SUPER_ADMIN]}>
+                  <FournisseursPage />
                 </ProtectedRoute>
               } />
 

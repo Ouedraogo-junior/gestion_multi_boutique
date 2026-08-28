@@ -48,7 +48,8 @@
         .rapport-title p  { font-size: 11px; color: #999; margin-top: 4px; }
 
         h3 { font-size: 13px; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin: 16px 0 8px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 16px; }
+        th, td { word-wrap: break-word; overflow-wrap: break-word; }
         th { background: #f0f0f0; padding: 6px; text-align: left; font-size: 11px; color: #6B7280; }
         td { padding: 6px; border-bottom: 1px solid #eee; }
         .right  { text-align: right; }

@@ -2,52 +2,79 @@
 
 namespace App\Exports;
 
-use Maatwebsite\Excel\Concerns\FromArray;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
-class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
+class RapportExport implements WithMultipleSheets
 {
     public function __construct(
         private string $type,
         private array  $data
     ) {}
 
-    public function title(): string
+    /**
+     * Point d'entrée Maatwebsite Excel : renvoie la liste des onglets du classeur.
+     * Le rapport CA a besoin de plusieurs onglets (résumé + détails volumineux) ;
+     * tous les autres rapports gardent un classeur à un seul onglet, comme avant.
+     */
+    public function sheets(): array
+    {
+        if ($this->type === 'ca') {
+            return [
+                new RapportSheetExport('Résumé', $this->headingsFor('ca'), $this->rowsCA()),
+                new RapportSheetExport(
+                    'Détail des ventes',
+                    ['Date', 'Facture', 'Client', 'Total (FCFA)', 'Solde dû (FCFA)'],
+                    $this->rowsDetailVentes()
+                ),
+                new RapportSheetExport(
+                    'Articles vendus',
+                    ['Date', 'Facture', 'Produit', 'Qté', 'Prix achat', 'Prix vente', 'Prix appliqué', 'Écart', 'Montant (FCFA)'],
+                    $this->rowsArticlesVendus()
+                ),
+            ];
+        }
+
+        return [
+            new RapportSheetExport($this->title(), $this->headingsFor($this->type), $this->rows($this->type)),
+        ];
+    }
+
+    private function title(): string
     {
         return match($this->type) {
-            'ca'        => 'Chiffre d\'affaires',
-            'stock'     => 'Stock',
-            'dettes'    => 'Dettes clients',
-            'depenses'  => 'Dépenses',
-            'consolide' => 'Consolidé',
-            default     => 'Rapport',
+            'ca'          => 'Chiffre d\'affaires',
+            'stock'       => 'Stock',
+            'dettes'      => 'Dettes clients',
+            'depenses'    => 'Dépenses',
+            'consolide'   => 'Consolidé',
+            'fournisseurs'=> 'Dettes fournisseurs',
+            default       => 'Rapport',
         };
     }
 
-    public function headings(): array
+    private function headingsFor(string $type): array
     {
-        return match($this->type) {
-            'ca'       => ['Indicateur', 'Valeur (FCFA)'],
-            'stock'    => ['Produit', 'Référence', 'Attributs', 'Stock actuel', 'Seuil alerte', 'Valeur (FCFA)', 'Statut'],
-            'dettes'   => ['Client', 'Téléphone', 'Total crédit', 'Total payé', 'Solde dû'],
-            'depenses' => ['Date', 'Description', 'Catégorie', 'Montant (FCFA)'],
-            'consolide'=> ['Boutique', 'CA (FCFA)', 'Bénéfice (FCFA)', 'Dépenses (FCFA)', 'Dettes (FCFA)', 'Stock (FCFA)'],
-            default    => [],
+        return match($type) {
+            'ca'          => ['Indicateur', 'Valeur (FCFA)'],
+            'stock'       => ['Produit', 'Référence', 'Attributs', 'Stock actuel', 'Seuil alerte', 'Valeur (FCFA)', 'Statut'],
+            'dettes'      => ['Client', 'Téléphone', 'Total crédit', 'Total payé', 'Solde dû'],
+            'depenses'    => ['Date', 'Description', 'Catégorie', 'Montant (FCFA)'],
+            'consolide'   => ['Boutique', 'CA (FCFA)', 'Bénéfice (FCFA)', 'Dépenses (FCFA)', 'Dettes (FCFA)', 'Stock (FCFA)'],
+            'fournisseurs'=> ['Fournisseur', 'Téléphone', 'Total dû', 'Total payé', 'Solde dû'],
+            default       => [],
         };
     }
 
-    public function array(): array
+    private function rows(string $type): array
     {
-        return match($this->type) {
-            'ca'       => $this->rowsCA(),
-            'stock'    => $this->rowsStock(),
-            'dettes'   => $this->rowsDettes(),
-            'depenses' => $this->rowsDepenses(),
-            'consolide'=> $this->rowsConsolide(),
-            default    => [],
+        return match($type) {
+            'ca'          => $this->rowsCA(),
+            'stock'       => $this->rowsStock(),
+            'dettes'      => $this->rowsDettes(),
+            'depenses'    => $this->rowsDepenses(),
+            'consolide'   => $this->rowsConsolide(),
+            'fournisseurs'=> $this->rowsFournisseurs(),
+            default       => [],
         };
     }
 
@@ -113,6 +140,32 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
         return $rows;
     }
 
+    private function rowsDetailVentes(): array
+    {
+        return collect($this->data['ventes']['detail'] ?? [])->map(fn($v) => [
+            !empty($v['date_validation']) ? \Carbon\Carbon::parse($v['date_validation'])->format('d/m/Y') : '—',
+            $v['numero_facture'] ?? '—',
+            $v['client_nom']     ?? 'Anonyme',
+            $v['total_net']      ?? 0,
+            $v['reste_du']       ?? 0,
+        ])->toArray();
+    }
+
+    private function rowsArticlesVendus(): array
+    {
+        return collect($this->data['ventes']['articles_vendus'] ?? [])->map(fn($a) => [
+            !empty($a['date_validation']) ? \Carbon\Carbon::parse($a['date_validation'])->format('d/m/Y') : '—',
+            $a['numero_facture'] ?? '—',
+            $a['produit']        ?? '—',
+            $a['quantite']       ?? 0,
+            $a['prix_achat']     ?? 0,
+            $a['prix_vente']     ?? 0,
+            $a['prix_applique']  ?? 0,
+            ($a['prix_applique'] ?? 0) - ($a['prix_achat'] ?? 0),
+            $a['montant']        ?? 0,
+        ])->toArray();
+    }
+
     private function rowsStock(): array
     {
         return collect($this->data['variantes'] ?? [])->map(fn($v) => [
@@ -153,6 +206,33 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
         return $rows;
     }
 
+    private function rowsFournisseurs(): array
+    {
+        $rows = collect($this->data['fournisseurs'] ?? [])->map(fn($f) => [
+            $f['nom']         ?? '—',
+            $f['telephone']   ?? '—',
+            $f['total_du']    ?? 0,
+            $f['total_paye']  ?? 0,
+            $f['solde_dette'] ?? 0,
+        ])->toArray();
+
+        if (!empty($this->data['paiements_periode'])) {
+            $rows[] = ['---', '---', '---', '---', '---'];
+            $rows[] = ['Historique des paiements de la période', '', '', '', ''];
+            foreach ($this->data['paiements_periode'] as $p) {
+                $rows[] = [
+                    $p['nom'] ?? '—',
+                    \Carbon\Carbon::parse($p['date'])->format('d/m/Y'),
+                    $p['numero_approvisionnement'] ?? '—',
+                    '',
+                    $p['montant'] ?? 0,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
     private function rowsDepenses(): array
     {
         return collect($this->data['depenses'] ?? [])->map(fn($d) => [
@@ -173,12 +253,5 @@ class RapportExport implements FromArray, WithHeadings, WithTitle, WithStyles
             $b['dettes']   ?? 0,
             $b['stock']    ?? 0,
         ])->toArray();
-    }
-
-    public function styles(Worksheet $sheet): array
-    {
-        return [
-            1 => ['font' => ['bold' => true, 'color' => ['argb' => 'FF1A7A4A']]],
-        ];
     }
 }

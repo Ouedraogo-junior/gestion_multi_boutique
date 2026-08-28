@@ -73,12 +73,18 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         Route::get('/boutiques/{boutique_id}/rapports/ca',       [RapportController::class, 'ca']);
         Route::get('/boutiques/{boutique_id}/rapports/stock',    [RapportController::class, 'stock']);
         Route::get('/boutiques/{boutique_id}/rapports/dettes',   [RapportController::class, 'dettes']);
+        Route::get('/boutiques/{boutique_id}/rapports/dettes-fournisseurs', [RapportController::class, 'dettesFournisseurs']);
         Route::get('/boutiques/{boutique_id}/rapports/depenses', [RapportController::class, 'depenses']);
         Route::get('/boutiques/{boutique_id}/rapports/export',   [RapportController::class, 'export']);
         Route::get('/rapports/consolide/export',                 [RapportController::class, 'exportConsolide']);
 
         // Audit
         Route::get('/boutiques/{boutique_id}/audit', [AuditController::class, 'boutique']);
+
+        // Fournisseurs — modification réservée à l'admin/super admin
+        // (la lecture et la création restent ouvertes au vendeur, cf. bloc ci-dessous,
+        // car nécessaires pour créer un approvisionnement)
+        Route::put('/boutiques/{boutique_id}/fournisseurs/{id}', [FournisseurController::class, 'update']);
     });
 
     // Produits & Stock — Admin + Vendeur
@@ -141,7 +147,6 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
         // Fournisseurs
         Route::get('/boutiques/{boutique_id}/fournisseurs', [FournisseurController::class, 'index']);
         Route::post('/boutiques/{boutique_id}/fournisseurs', [FournisseurController::class, 'store']);
-        Route::put('/boutiques/{boutique_id}/fournisseurs/{id}', [FournisseurController::class, 'update']);
 
         // Approvisionnements
         Route::get('/boutiques/{boutique_id}/approvisionnements', [ApprovisionnementController::class, 'index']);
@@ -186,4 +191,3 @@ Route::middleware(['auth:sanctum', 'scope.boutique', 'audit'])->group(function (
     });
 
 });
-

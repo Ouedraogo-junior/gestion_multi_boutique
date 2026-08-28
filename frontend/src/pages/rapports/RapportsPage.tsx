@@ -4,26 +4,28 @@ import { FileText, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getRapportCA, getRapportStock, getRapportDettes, getRapportDepenses, getRapportConsolide } from '@/api/rapports'
+import { getRapportCA, getRapportStock, getRapportDettes, getRapportDettesFournisseurs, getRapportDepenses, getRapportConsolide } from '@/api/rapports'
 import { useAuth } from '@/hooks/useAuth'
 import { ROLES } from '@/utils/constants'
 import { toast } from 'sonner'
 import TabCA from './components/TabCA'
 import TabDettes from './components/TabDettes'
+import TabDettesFournisseurs from './components/TabDettesFournisseurs'
 import TabDepenses from './components/TabDepenses'
 import TabStock from './components/TabStock'
 import TabConsolide from './components/TabConsolide'
 import { exportRapport, exportConsolide } from '@/api/rapports'
 
 
-type TabKey = 'ca' | 'stock' | 'dettes' | 'depenses' | 'consolide'
+type TabKey = 'ca' | 'stock' | 'dettes' | 'fournisseurs' | 'depenses' | 'consolide'
 
 const TABS: { key: TabKey; label: string; needsDate: boolean }[] = [
-  { key: 'ca',        label: 'CA',        needsDate: true  },
-  { key: 'stock',     label: 'Stock',     needsDate: false },
-  { key: 'dettes',    label: 'Dettes',    needsDate: true  }, 
-  { key: 'depenses',  label: 'Dépenses',  needsDate: true  },
-  { key: 'consolide', label: 'Consolidé', needsDate: true  },
+  { key: 'ca',           label: 'CA',                  needsDate: true  },
+  { key: 'stock',        label: 'Stock',                needsDate: false },
+  { key: 'dettes',       label: 'Dette client',         needsDate: true  },
+  { key: 'fournisseurs', label: 'Dette fournisseurs',   needsDate: true  },
+  { key: 'depenses',     label: 'Dépenses',             needsDate: true  },
+  { key: 'consolide',    label: 'Consolidé',            needsDate: true  },
 ]
 
 export default function RapportsPage() {
@@ -66,11 +68,12 @@ export default function RapportsPage() {
         let res
         const params = { debut, fin }
         switch (activeTab) {
-            case 'ca':        res = await getRapportCA(id, params);       break
-            case 'stock':     res = await getRapportStock(id);            break
-            case 'dettes':    res = await getRapportDettes(id, params);   break  
-            case 'depenses':  res = await getRapportDepenses(id, params); break
-            case 'consolide': res = await getRapportConsolide(params);    break
+            case 'ca':           res = await getRapportCA(id, params);                break
+            case 'stock':        res = await getRapportStock(id);                     break
+            case 'dettes':       res = await getRapportDettes(id, params);             break
+            case 'fournisseurs': res = await getRapportDettesFournisseurs(id, params); break
+            case 'depenses':     res = await getRapportDepenses(id, params);           break
+            case 'consolide':    res = await getRapportConsolide(params);              break
         }
 
         if (cancelled) return  // ← on ignore si le tab a changé entre temps
@@ -185,11 +188,12 @@ export default function RapportsPage() {
             <div className="text-center py-16 text-gray-400">Aucune donnée</div>
           ) : (
             <>
-              {activeTab === 'ca'        && <TabCA        data={data as Parameters<typeof TabCA>[0]['data']}        />}
-              {activeTab === 'dettes'    && <TabDettes    data={data as Parameters<typeof TabDettes>[0]['data']}    />}
-              {activeTab === 'depenses'  && <TabDepenses  data={data as Parameters<typeof TabDepenses>[0]['data']}  />}
-              {activeTab === 'stock'     && <TabStock     data={data as Parameters<typeof TabStock>[0]['data']}     />}
-              {activeTab === 'consolide' && <TabConsolide data={data as Parameters<typeof TabConsolide>[0]['data']} />}
+              {activeTab === 'ca'           && <TabCA               data={data as Parameters<typeof TabCA>[0]['data']}               />}
+              {activeTab === 'dettes'       && <TabDettes           data={data as Parameters<typeof TabDettes>[0]['data']}           />}
+              {activeTab === 'fournisseurs' && <TabDettesFournisseurs data={data as Parameters<typeof TabDettesFournisseurs>[0]['data']} />}
+              {activeTab === 'depenses'     && <TabDepenses         data={data as Parameters<typeof TabDepenses>[0]['data']}         />}
+              {activeTab === 'stock'        && <TabStock            data={data as Parameters<typeof TabStock>[0]['data']}            />}
+              {activeTab === 'consolide'    && <TabConsolide        data={data as Parameters<typeof TabConsolide>[0]['data']}        />}
             </>
           )}
         </div>

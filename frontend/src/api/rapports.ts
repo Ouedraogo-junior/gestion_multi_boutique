@@ -9,6 +9,9 @@ export const getRapportStock    = (boutiqueId: number) =>
 export const getRapportDettes = (boutiqueId: number, params: Record<string, string>) =>
   api.get(`/boutiques/${boutiqueId}/rapports/dettes`, { params })
 
+export const getRapportDettesFournisseurs = (boutiqueId: number, params: Record<string, string>) =>
+  api.get(`/boutiques/${boutiqueId}/rapports/dettes-fournisseurs`, { params })
+
 export const getRapportDepenses = (boutiqueId: number, params: Record<string, string>) =>
   api.get(`/boutiques/${boutiqueId}/rapports/depenses`, { params })
 
